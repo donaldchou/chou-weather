@@ -1,0 +1,146 @@
+'use client';
+import { useMemo, useState } from 'react';
+import EChart, { C } from './EChart';
+import { useStations } from './useStation';
+import { DataIndex, StationMeta } from '@/lib/data';
+import { chillByWinter, gddByYear, Monthly, RULES, toDaily, toMonthly } from '@/lib/agri';
+import { Card, Loading, Select } from './ui';
+
+const HOUR_METRICS: { key: keyof Monthly; rule: { label: string; desc: string } }[] = [
+  { key: 'frost', rule: RULES.frost },
+  { key: 'wet', rule: RULES.wet },
+  { key: 'spray', rule: RULES.spray },
+  { key: 'heat', rule: RULES.heat },
+  { key: 'chill', rule: RULES.chill },
+];
+
+const dateLabel = (base: string, offset: number) => {
+  const d = new Date(Date.parse(base) + offset * 86400e3);
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+};
+
+export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
+  const [sid, setSid] = useState('composite');
+  const [hm, setHm] = useState<keyof Monthly>('frost');
+  const ids = sid === 'openmeteo' || sid === 'composite' ? [sid] : [sid, 'openmeteo'];
+  const { data, loading } = useStations(ids);
+  const cols = data[sid];
+  const om = data.openmeteo ?? data[sid];
+
+  const daily = useMemo(() => (cols ? toDaily(cols, idx.hours) : []), [cols, idx.hours]);
+  const monthly = useMemo(() => toMonthly(daily), [daily]);
+  const winters = useMemo(() => chillByWinter(daily), [daily]);
+  const gdd = useMemo(() => gddByYear(daily), [daily]);
+  const omMonthly = useMemo(() => (om ? toMonthly(toDaily(om, idx.hours)) : []), [om, idx.hours]);
+  const years = [...new Set(monthly.map(m => m.month.slice(0, 4)))];
+  const mDef = HOUR_METRICS.find(m => m.key === hm)!;
+  const tempStations = stations.filter(s => s.fields.includes('t') || s.id === 'composite');
+
+  return (
+    <div className="space-y-5">
+      <Card>
+        <div className="flex flex-wrap items-end gap-4">
+          <Select label="計算用的測站" value={sid} onChange={setSid} options={tempStations.map(s => ({ value: s.id, label: `${s.name}（${s.elevation}m）` }))} />
+          <p className="text-sm text-stone-500 flex-1 min-w-60">
+            建議用「上巴陵綜合」：氣溫已依海拔換算到上巴陵（每 100m 約差 0.6°C；實測驗證白嶺比四稜低 1.35°C，理論值 1.38°C）。
+            以下指標的門檻是一般水蜜桃栽培的參考值，實際請依你的品種與經驗調整。
+          </p>
+        </div>
+      </Card>
+
+      {loading || !cols ? <Loading /> : (
+        <>
+          <Card title="❄️ 需冷量累積（每個冬天）" hint={`${RULES.chill.desc} 從每年 10/1 開始累積，曲線越高代表冬天越冷、低溫越足夠。`}>
+            <EChart height={380} option={{
+              xAxis: { type: 'value', min: 0, max: 182, interval: 30, axisLabel: { formatter: (v: number) => dateLabel('2023-10-01', v) } },
+              yAxis: { type: 'value', name: '累積小時' },
+              tooltip: { trigger: 'axis', axisPointer: { type: 'line' }, formatter: (ps: unknown) => {
+                const arr = ps as { seriesName: string; value: [number, number]; color: string }[];
+                if (!arr.length) return '';
+                return `<b>${dateLabel('2023-10-01', arr[0].value[0])}</b><br/>` + arr.map(p => `<span style="color:${p.color}">●</span> ${p.seriesName}：${p.value[1]} 小時`).join('<br/>');
+              } },
+              series: winters.map((w, k) => ({
+                name: `${w.label}（${w.total}h${w.coverage < 0.9 ? '，資料不完整' : ''}）`, type: 'line', symbol: 'none', data: w.points,
+                color: C.years[(k + 6 - winters.length) % 6], lineStyle: { width: k === winters.length - 1 ? 4 : 2 },
+              })),
+            }} />
+          </Card>
+
+          <Card title={`📊 每月 ${mDef.rule.label}`} hint={mDef.rule.desc}>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {HOUR_METRICS.map(m => (
+                <button key={m.key} onClick={() => setHm(m.key)}
+                  className={`px-3 py-1.5 rounded-full text-sm border ${hm === m.key ? 'bg-stone-800 text-white border-stone-800' : 'bg-white border-stone-300'}`}>{m.rule.label}</button>
+              ))}
+            </div>
+            <EChart height={340} option={{
+              xAxis: { type: 'category', data: Array.from({ length: 12 }, (_, i) => `${i + 1}月`) },
+              yAxis: { type: 'value', name: '小時' },
+              series: years.map((y, k) => ({
+                name: y, type: 'bar', color: C.years[(k + 6 - years.length) % 6],
+                data: Array.from({ length: 12 }, (_, i) => {
+                  const m = monthly.find(x => x.month === `${y}-${String(i + 1).padStart(2, '0')}`);
+                  return m && m.coverage > 0.3 ? (m[hm] as number) : null;
+                }),
+              })),
+            }} />
+          </Card>
+
+          <Card title="🌡️ 生長度日累積（每年 1/1 起）" hint={`${RULES.gdd.desc} 同一天比較各年的高低，可以預估今年開花、採收會提早還是延後。`}>
+            <EChart height={360} option={{
+              xAxis: { type: 'value', min: 0, max: 365, interval: 31, axisLabel: { formatter: (v: number) => dateLabel('2023-01-01', v) } },
+              yAxis: { type: 'value', name: '°C·日' },
+              tooltip: { trigger: 'axis', formatter: (ps: unknown) => {
+                const arr = ps as { seriesName: string; value: [number, number]; color: string }[];
+                if (!arr.length) return '';
+                return `<b>${dateLabel('2023-01-01', arr[0].value[0])}</b><br/>` + arr.map(p => `<span style="color:${p.color}">●</span> ${p.seriesName}：${p.value[1]}`).join('<br/>');
+              } },
+              series: gdd.map((g, k) => ({
+                name: g.label, type: 'line', symbol: 'none', data: g.points,
+                color: C.years[(k + 6 - gdd.length) % 6], lineStyle: { width: k === gdd.length - 1 ? 4 : 2 },
+              })),
+            }} />
+          </Card>
+
+          <div className="grid lg:grid-cols-2 gap-5">
+            <Card title="💧 水分收支：雨量 vs 蒸發散" hint="柱：月雨量（實測）；線：參考蒸發散量 ET0（Open-Meteo 推估）。雨量低於 ET0 的月份，果園可能缺水、需注意灌溉。">
+              <EChart option={{
+                xAxis: { type: 'category', data: monthly.map(m => m.month) },
+                yAxis: { type: 'value', name: 'mm' },
+                dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }], grid: { bottom: 60 },
+                series: [
+                  { name: '月雨量', type: 'bar', data: monthly.map(m => m.rain), color: C.rain },
+                  { name: 'ET0 蒸發散', type: 'line', data: omMonthly.map(m => m.et0), color: C.sun, lineStyle: { width: 3 } },
+                ],
+              }} />
+            </Card>
+            <Card title="🟫 土壤溫度與含水量" hint="Open-Meteo 衛星與模式推估（非實測），可看土壤乾濕的趨勢，數字僅供參考。">
+              <EChart option={{
+                xAxis: { type: 'category', data: omMonthly.map(m => m.month) },
+                yAxis: [{ type: 'value', name: '°C', scale: true }, { type: 'value', name: '含水 %', scale: true, splitLine: { show: false } }],
+                dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }], grid: { bottom: 60 },
+                series: [
+                  { name: '土溫 0–7cm', type: 'line', data: omMonthly.map(m => m.soilT0), color: C.soil, symbol: 'none' },
+                  { name: '表土含水 0–7cm', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.soilM0), color: C.rain, symbol: 'none' },
+                  { name: '深層含水 28–100cm', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.soilM28), color: '#1d4e89', symbol: 'none', lineStyle: { type: 'dashed' } },
+                ],
+              }} />
+            </Card>
+          </div>
+
+          <Card title="☀️ 日射量與日照" hint="Open-Meteo 推估。日照充足有助果實著色與甜度；採收前日照少，糖度容易偏低。">
+            <EChart option={{
+              xAxis: { type: 'category', data: omMonthly.map(m => m.month) },
+              yAxis: [{ type: 'value', name: 'MJ/m²' }, { type: 'value', name: '小時', splitLine: { show: false } }],
+              dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }], grid: { bottom: 60 },
+              series: [
+                { name: '月日射量', type: 'bar', data: omMonthly.map(m => m.rad), color: '#ffd166' },
+                { name: '月日照時數', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.sun), color: C.sun },
+              ],
+            }} />
+          </Card>
+        </>
+      )}
+    </div>
+  );
+}
