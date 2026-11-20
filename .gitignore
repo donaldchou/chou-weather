@@ -43,3 +43,9 @@ next-env.d.ts
 # 抓資料的原始快取
 /data-cache
 /data-export
+
+# ll3 ASP config with API key
+/ll3/platform/chou-weather/config.asp
+
+# personal notes with passwords - never commit
+/拉拉山天氣預測_命令.txt
