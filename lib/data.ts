@@ -105,30 +105,38 @@ export const COMPOSITE_ORDER: Record<string, string[]> = {
   soilM28: ['openmeteo'],
 };
 
+/** 依 COMPOSITE_ORDER 組出上巴陵綜合資料（網頁與匯出 mdb 共用） */
+export function buildComposite(idx: DataIndex, data: Record<string, Cols>): Cols {
+  const meta = Object.fromEntries(idx.stations.map(s => [s.id, s]));
+  const n = idx.hours;
+  const out: Cols = {};
+  for (const [f, order] of Object.entries(COMPOSITE_ORDER)) {
+    const col: Col = new Array(n).fill(null);
+    for (let i = 0; i < n; i++) {
+      for (const id of order) {
+        const v = data[id]?.[f]?.[i];
+        if (v != null) {
+          // 氣溫依海拔換算到上巴陵
+          col[i] = f === 't' ? Math.round((v + ((meta[id].elevation - idx.site.elevation) / 100) * LAPSE) * 10) / 10 : v;
+          break;
+        }
+      }
+    }
+    out[f] = col;
+  }
+  return out;
+}
+
+export const compositeSourceIds = (idx: DataIndex) =>
+  [...new Set(Object.values(COMPOSITE_ORDER).flat())].filter(id => idx.stations.some(s => s.id === id));
+
 let compositePromise: Promise<Cols> | null = null;
 function loadComposite(): Promise<Cols> {
   compositePromise ??= (async () => {
     const idx = await loadIndex();
-    const meta = Object.fromEntries(idx.stations.map(s => [s.id, s]));
-    const ids = [...new Set(Object.values(COMPOSITE_ORDER).flat())].filter(id => meta[id]);
+    const ids = compositeSourceIds(idx);
     const data = Object.fromEntries(await Promise.all(ids.map(async id => [id, await loadStation(id)] as const)));
-    const n = idx.hours;
-    const out: Cols = {};
-    for (const [f, order] of Object.entries(COMPOSITE_ORDER)) {
-      const col: Col = new Array(n).fill(null);
-      for (let i = 0; i < n; i++) {
-        for (const id of order) {
-          const v = data[id]?.[f]?.[i];
-          if (v != null) {
-            // 氣溫依海拔換算到上巴陵
-            col[i] = f === 't' ? Math.round((v + ((meta[id].elevation - idx.site.elevation) / 100) * LAPSE) * 10) / 10 : v;
-            break;
-          }
-        }
-      }
-      out[f] = col;
-    }
-    return out;
+    return buildComposite(idx, data);
   })();
   return compositePromise;
 }

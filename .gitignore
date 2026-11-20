@@ -42,3 +42,4 @@ next-env.d.ts
 
 # 抓資料的原始快取
 /data-cache
+/data-export
