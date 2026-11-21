@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { CloudSun, LogIn } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { Button, Field, Input } from '@/components/admin-ui';
 
 /** 登入後要回到的頁面；只接受站內路徑，避免被導到別的網站 */
@@ -42,7 +42,9 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-stone-100 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white"><CloudSun size={24} /></div>
+          {/* 平台自己的分頁圖示（proxy 已放行 /icon.svg，不用登入也讀得到） */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.svg" width={44} height={44} alt="" className="block" />
           <div>
             <div className="text-xl font-bold text-stone-900">上巴陵天氣</div>
             <div className="text-sm text-stone-500">水蜜桃農事天氣</div>
