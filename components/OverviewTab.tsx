@@ -1,7 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import EChart, { C, yearColor } from './EChart';
 import { useStations } from './useStation';
+import { useSaved } from '@/lib/saved';
 import { DataIndex, srcFor, StationMeta } from '@/lib/data';
 import { chillWinterMonths, Monthly, toDaily, toMonthly, WINTER_MONTH_LABELS } from '@/lib/agri';
 import { Card, Select, SrcTags, Stat, Loading } from './ui';
@@ -22,9 +23,9 @@ const METRICS: { key: keyof Monthly; label: string; unit: string; bar?: boolean;
 ];
 
 export default function OverviewTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
-  const [sid, setSid] = useState('composite');
-  const [year, setYear] = useState('all');
-  const [metric, setMetric] = useState<keyof Monthly>('tMean');
+  const [sid, setSid] = useSaved('monthly:station', 'composite', v => stations.some(s => s.id === v));
+  const [year, setYear] = useSaved('monthly:year', 'all');
+  const [metric, setMetric] = useSaved<keyof Monthly>('monthly:metric', 'tMean', v => METRICS.some(m => m.key === v));
   const { data, loading } = useStations([sid]);
   const cols = data[sid];
 

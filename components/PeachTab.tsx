@@ -1,7 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import EChart, { C, yearColor } from './EChart';
 import { useStations } from './useStation';
+import { useSaved } from '@/lib/saved';
 import { DataIndex, srcFor, srcOf, srcTags, StationMeta } from '@/lib/data';
 import { chillByWinter, chillWinterMonths, gddByYear, Monthly, RULES, toDaily, toMonthly, WINTER_MONTH_LABELS } from '@/lib/agri';
 import { Card, Loading, Select } from './ui';
@@ -23,8 +24,8 @@ const chillTitle = (v: number | string) => dateLabel('2023-10-01', +v);
 const gddTitle = (v: number | string) => dateLabel('2023-01-01', +v);
 
 export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
-  const [sid, setSid] = useState('composite');
-  const [hm, setHm] = useState<keyof Monthly>('frost');
+  const [sid, setSid] = useSaved('peach:station', 'composite', v => stations.some(s => s.id === v));
+  const [hm, setHm] = useSaved<keyof Monthly>('peach:metric', 'frost', v => HOUR_METRICS.some(m => m.key === v));
   const ids = sid === 'openmeteo' || sid === 'composite' ? [sid] : [sid, 'openmeteo'];
   const { data, loading } = useStations(ids);
   const cols = data[sid];

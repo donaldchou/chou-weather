@@ -1,6 +1,9 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import * as echarts from 'echarts';
+import { readSaved, subscribeSaved, writeSaved } from '@/lib/saved';
+import { ChartKeyContext } from './chart-key';
 
 type Option = echarts.EChartsOption;
 
@@ -63,15 +66,88 @@ function withDefaults(option: Option, hovered: { current: number | null }, fmt: 
 const enableBrushZoom = (c: echarts.ECharts) =>
   c.dispatchAction({ type: 'takeGlobalCursor', key: 'dataZoomSelect', dataZoomSelectActive: true });
 
-function useChart(option: Option, fmt: TipFormat) {
+/* ---------------- 記住每張圖的設定（關掉的資料、縮放範圍），放大畫面與 F5 後都還在 ---------------- */
+type ChartState = { off?: string[]; zoom?: [string | number, string | number] };
+
+/** 圖例名稱去掉括號裡會變動的部分（例：「2025~2026 冬（335h）」→「2025~2026 冬」），資料更新後還對得上 */
+const baseName = (name: string) => name.replace(/\s*[（(].*$/, '').trim();
+const seriesNames = (o: Option) =>
+  (Array.isArray(o.series) ? o.series : o.series ? [o.series] : []).map(s => String((s as { name?: string }).name ?? ''));
+const xData = (o: Option) => ((Array.isArray(o.xAxis) ? o.xAxis[0] : o.xAxis) as { data?: unknown[] } | undefined)?.data;
+
+function loadState(key: string | null): ChartState {
+  if (!key) return {};
+  try { return JSON.parse(readSaved(key) ?? '{}') as ChartState; } catch { return {}; }
+}
+
+/** 把記住的設定套到圖上 */
+function applyState(c: echarts.ECharts, option: Option, s: ChartState) {
+  const names = seriesNames(option);
+  const off = new Set(s.off ?? []);
+  c.setOption({ legend: { selected: Object.fromEntries(names.map(n => [n, !off.has(baseName(n))])) } });
+  if (option.xAxis == null) return;
+  if (!s.zoom) {
+    c.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
+    return;
+  }
+  const data = xData(option);
+  // 類別軸存的是標籤（例：2021-05），資料變多後位置會變，所以換回目前的位置
+  const pos = (v: string | number) => (data ? data.findIndex(d => String(d) === String(v)) : Number(v));
+  const a = pos(s.zoom[0]), b = pos(s.zoom[1]);
+  if (a >= 0 && b >= 0) c.dispatchAction({ type: 'dataZoom', startValue: a, endValue: b });
+}
+
+/** 從圖上讀出目前的設定 */
+function readState(c: echarts.ECharts, option: Option): ChartState {
+  const o = c.getOption() as { legend?: { selected?: Record<string, boolean> }[] };
+  const sel = o.legend?.[0]?.selected ?? {};
+  const off = [...new Set(seriesNames(option).filter(n => sel[n] === false).map(baseName))];
+  const s: ChartState = {};
+  if (off.length) s.off = off;
+  // 拖曳選取建立的縮放元件，範圍不會出現在 getOption()，要直接問元件本身
+  type DzModel = { getPercentRange(): number[]; getValueRange(): number[] };
+  const model = (c as unknown as { getModel(): { getComponent(t: string, i: number): DzModel | undefined } }).getModel();
+  for (let i = 0; i < 10; i++) {
+    const dz = model.getComponent('dataZoom', i);
+    if (!dz) break;
+    const [p0, p1] = dz.getPercentRange();
+    if (p0 <= 0.001 && p1 >= 99.999) continue;
+    const [v0, v1] = dz.getValueRange();
+    const data = xData(option);
+    const v = (x: number) => (data ? String(data[Math.round(x)]) : x);
+    s.zoom = [v(v0), v(v1)];
+    break;
+  }
+  return s;
+}
+
+function useChart(option: Option, fmt: TipFormat, stateKey: string | null) {
   const ref = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
   const hovered = useRef<number | null>(null);
+  const applying = useRef(false);
+  const optionRef = useRef(option);
 
   useEffect(() => {
     if (!ref.current) return;
     const c = echarts.init(ref.current);
     chart.current = c;
+    // 使用者改了資料開關或縮放 → 記下來（套用記住的設定時不要再存一次）
+    const save = () => {
+      if (applying.current || !stateKey) return;
+      const s = readState(c, optionRef.current);
+      writeSaved(stateKey, Object.keys(s).length ? JSON.stringify(s) : null);
+    };
+    for (const ev of ['legendselectchanged', 'legendselected', 'legendunselected', 'legendselectall', 'legendinverseselect', 'datazoom']) c.on(ev, save);
+    // 另一張同名的圖（放大畫面／原畫面）改了設定 → 這張也跟著變
+    const unsub = stateKey ? subscribeSaved(stateKey, () => {
+      const cur = JSON.stringify(readState(c, optionRef.current));
+      const want = loadState(stateKey);
+      if (cur === JSON.stringify(want)) return;
+      applying.current = true;
+      applyState(c, optionRef.current, want);
+      applying.current = false;
+    }) : () => {};
     let pos: [number, number] | null = null;
     c.getZr().on('mousemove', e => { pos = [e.offsetX, e.offsetY]; });
     // 滑鼠移到某條線上／離開時，重畫彈出視窗（先 hideTip 才會重新產生內容）
@@ -87,16 +163,20 @@ function useChart(option: Option, fmt: TipFormat) {
     c.getZr().on('globalout', () => { pos = null; hovered.current = null; });
     const ro = new ResizeObserver(() => c.resize());
     ro.observe(ref.current);
-    return () => { ro.disconnect(); c.dispose(); chart.current = null; };
-  }, []);
+    return () => { unsub(); ro.disconnect(); c.dispose(); chart.current = null; };
+  }, [stateKey]);
 
   const { tipTitle, tipUnit } = fmt;
   useEffect(() => {
     const c = chart.current;
     if (!c) return;
+    optionRef.current = option;
+    applying.current = true;
     c.setOption(withDefaults(option, hovered, { tipTitle, tipUnit }), true);
     if (option.xAxis != null) enableBrushZoom(c);
-  }, [option, tipTitle, tipUnit]);
+    applyState(c, option, loadState(stateKey));
+    applying.current = false;
+  }, [option, tipTitle, tipUnit, stateKey]);
 
   return { ref, chart };
 }
@@ -152,8 +232,8 @@ function Toolbar({ chart, option, full, onFull }: {
   );
 }
 
-function FullScreen({ option, fmt, onClose }: { option: Option; fmt: TipFormat; onClose: () => void }) {
-  const { ref, chart } = useChart(option, fmt);
+function FullScreen({ option, fmt, stateKey, onClose }: { option: Option; fmt: TipFormat; stateKey: string | null; onClose: () => void }) {
+  const { ref, chart } = useChart(option, fmt, stateKey);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -170,15 +250,19 @@ function FullScreen({ option, fmt, onClose }: { option: Option; fmt: TipFormat; 
   );
 }
 
-export default function EChart({ option, height = 320, tipTitle, tipUnit }: { option: Option; height?: number } & TipFormat) {
+/** stateKey：記住設定用的名稱；沒給就用「頁面路徑＋區塊標題」 */
+export default function EChart({ option, height = 320, tipTitle, tipUnit, stateKey }: { option: Option; height?: number; stateKey?: string } & TipFormat) {
   const [full, setFull] = useState(false);
-  const { ref, chart } = useChart(option, { tipTitle, tipUnit });
+  const pathname = usePathname();
+  const cardTitle = useContext(ChartKeyContext);
+  const key = stateKey ?? (cardTitle ? `chart:${pathname}|${cardTitle}` : null);
+  const { ref, chart } = useChart(option, { tipTitle, tipUnit }, key);
   const close = useCallback(() => setFull(false), []);
   return (
     <div>
       <Toolbar chart={chart} option={option} full={false} onFull={() => setFull(true)} />
       <div ref={ref} style={{ width: '100%', height }} />
-      {full && <FullScreen option={option} fmt={{ tipTitle, tipUnit }} onClose={close} />}
+      {full && <FullScreen option={option} fmt={{ tipTitle, tipUnit }} stateKey={key} onClose={close} />}
     </div>
   );
 }

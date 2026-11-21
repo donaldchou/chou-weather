@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { DataIndex, FIELD_LABEL, fmtHour, indexOf, loadStation, StationMeta } from '@/lib/data';
 import { Badge, Card, Select } from './ui';
+import { useSaved } from '@/lib/saved';
 
 const SOURCES = [
   {
@@ -43,8 +44,8 @@ function toCsv(meta: StationMeta, cols: Record<string, (number | null)[]>, from:
 }
 
 export default function SourcesTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
-  const [sid, setSid] = useState('composite');
-  const [year, setYear] = useState('2026');
+  const [sid, setSid] = useSaved('sources:station', 'composite', v => stations.some(s => s.id === v));
+  const [year, setYear] = useSaved('sources:year', idx.generatedAt.slice(0, 4), v => yearList(idx).includes(v));
   const [busy, setBusy] = useState(false);
 
   const download = async () => {

@@ -1,7 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import EChart, { C } from './EChart';
 import { useStations } from './useStation';
+import { useSaved } from '@/lib/saved';
 import { adjustTemp, DataIndex, fmtHour, indexOf, SrcItem, srcOf, StationMeta, timeOf } from '@/lib/data';
 import { RULES } from '@/lib/agri';
 import { Badge, Card, Loading, Select } from './ui';
@@ -10,10 +11,10 @@ const PALETTE = ['#e4572e', '#3a86ff', '#2bb673', '#f4a300', '#8d6cab', '#17becf
 
 export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
   const lastDay = idx.generatedAt.slice(0, 10);
-  const [ids, setIds] = useState<string[]>(['composite', 'C0C800', 'C0UA30']);
-  const [days, setDays] = useState('7');
-  const [end, setEnd] = useState(lastDay);
-  const [adjust, setAdjust] = useState(true);
+  const [ids, setIds] = useSaved<string[]>('hourly:stations', ['composite', 'C0C800', 'C0UA30'], v => Array.isArray(v) && v.every(id => stations.some(s => s.id === id)));
+  const [days, setDays] = useSaved('hourly:days', '7');
+  const [end, setEnd] = useSaved('hourly:end', lastDay, v => typeof v === 'string' && v <= lastDay && v >= idx.start.slice(0, 10));
+  const [adjust, setAdjust] = useSaved('hourly:adjust', true);
   const { data, loading } = useStations(ids);
 
   const endIdx = Math.min(idx.hours - 1, indexOf(`${end}T23`) + 1);

@@ -6,6 +6,7 @@ import { UnlockPanel } from '@/components/unlock-panel';
 import { Badge, Button, Field, Input, Modal, PageHeader, Select, Table, Tabs, Td } from '@/components/admin-ui';
 import { call, errMsg, useMe, type CodeResult } from '@/lib/client';
 import { FIELD_LABEL } from '@/lib/data';
+import { useSaved } from '@/lib/saved';
 
 type Tab = 'users' | 'weather' | 'logs';
 
@@ -276,11 +277,11 @@ const shiftDay = (d: string, n: number) => new Date(Date.parse(d) + n * 86400e3)
 function WeatherTab() {
   const [stations, setStations] = useState<Station[] | null>(null);
   const [error, setError] = useState('');
-  const [sid, setSid] = useState('composite');
-  const [mode, setMode] = useState<'hourly' | 'daily'>('hourly');
-  const [day, setDay] = useState(today);
-  const [days, setDays] = useState(1);
-  const [month, setMonth] = useState(() => today().slice(0, 7));
+  const [sid, setSid] = useSaved('admin:weather:station', 'composite');
+  const [mode, setMode] = useSaved<'hourly' | 'daily'>('admin:weather:mode', 'hourly');
+  const [day, setDay] = useSaved('admin:weather:day', today());
+  const [days, setDays] = useSaved('admin:weather:days', 1);
+  const [month, setMonth] = useSaved('admin:weather:month', today().slice(0, 7));
   const [rows, setRows] = useState<{ key: string; data?: (HourRow | DayRow)[]; error?: string } | null>(null);
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState<{ time: string; values: Record<string, string>; isNew: boolean } | null>(null);
@@ -456,8 +457,8 @@ const KIND_LABEL: Record<string, string> = { realtime: '即時中繼', daily: '�
 const PAGE_SIZE = 50;
 
 function LogsTab() {
-  const [kind, setKind] = useState('');
-  const [ok, setOk] = useState('');
+  const [kind, setKind] = useSaved('admin:logs:kind', '');
+  const [ok, setOk] = useSaved('admin:logs:ok', '');
   const [page, setPage] = useState(1);
   const [version, setVersion] = useState(0);
   const [res, setRes] = useState<{ key: string; data?: { total: number; items: Log[] }; error?: string } | null>(null);

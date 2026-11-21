@@ -1,6 +1,7 @@
 'use client';
 import { ReactNode } from 'react';
 import type { SrcItem } from '@/lib/data';
+import { ChartKeyContext } from './chart-key';
 
 /** 區塊標題後面的「實際量測值／估算值」標籤 */
 export function SrcTags({ items }: { items: SrcItem[] }) {
@@ -26,7 +27,7 @@ export function Card({ title, hint, src, children, className = '' }: { title?: s
         </h2>
       )}
       {hint && <p className="text-sm text-stone-500 mt-1 mb-3">{hint}</p>}
-      {children}
+      <ChartKeyContext.Provider value={title ?? null}>{children}</ChartKeyContext.Provider>
     </section>
   );
 }
