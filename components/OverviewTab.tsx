@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import EChart, { C } from './EChart';
+import EChart, { C, yearColor } from './EChart';
 import { useStations } from './useStation';
 import { DataIndex, StationMeta } from '@/lib/data';
 import { Monthly, toDaily, toMonthly } from '@/lib/agri';
@@ -57,7 +57,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
       <Card>
         <div className="flex flex-wrap items-end gap-4">
           <Select label="測站" value={sid} onChange={setSid} options={stations.map(s => ({ value: s.id, label: `${s.name}（${s.elevation}m）` }))} />
-          <Select label="年份" value={year} onChange={setYear} options={[{ value: 'all', label: '2022 ~ 現在全部' }, ...years.map(y => ({ value: y, label: `${y} 年` }))]} />
+          <Select label="年份" value={year} onChange={setYear} options={[{ value: 'all', label: `${years[0] ?? ''} ~ 現在全部` }, ...years.map(y => ({ value: y, label: `${y} 年` }))]} />
           <p className="text-sm text-stone-500 flex-1 min-w-60">{meta?.note}</p>
         </div>
       </Card>
@@ -82,8 +82,6 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
             <EChart option={{
               xAxis: { type: 'category', data: months },
               yAxis: { type: 'value', name: '°C' },
-              dataZoom: year === 'all' ? [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }] : undefined,
-              grid: { bottom: year === 'all' ? 60 : 40 },
               series: [
                 { name: '平均最高溫', type: 'line', data: shown.map(m => m.tMaxMean), lineStyle: { type: 'dashed' }, color: C.tMax, symbol: 'none' },
                 { name: '平均氣溫', type: 'line', data: shown.map(m => m.tMean), color: C.temp, lineStyle: { width: 3 } },
@@ -99,7 +97,6 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
               <EChart option={{
                 xAxis: { type: 'category', data: months },
                 yAxis: [{ type: 'value', name: 'mm' }, { type: 'value', name: '天', splitLine: { show: false } }],
-                dataZoom: year === 'all' ? [{ type: 'inside' }] : undefined,
                 series: [
                   { name: '月雨量', type: 'bar', data: shown.map(m => m.rain), color: C.rain },
                   { name: '雨日', type: 'line', yAxisIndex: 1, data: shown.map(m => m.rainDays), color: C.grey },
@@ -110,7 +107,6 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
               <EChart option={{
                 xAxis: { type: 'category', data: months },
                 yAxis: [{ type: 'value', name: '%', min: 50, max: 100 }, { type: 'value', name: '小時', splitLine: { show: false } }],
-                dataZoom: year === 'all' ? [{ type: 'inside' }] : undefined,
                 series: [
                   { name: '高濕病害時數', type: 'bar', yAxisIndex: 1, data: shown.map(m => m.wet), color: '#c9e4ca' },
                   { name: '平均濕度', type: 'line', data: shown.map(m => m.rhMean), color: C.rh, lineStyle: { width: 3 } },
@@ -119,7 +115,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
             </Card>
           </div>
 
-          <Card title="年度比較：同一個月份，每一年的差別" hint="選一個項目，比較 2022~2026 每年同月份的數值，看今年是偏冷、偏濕還是偏乾">
+          <Card title="年度比較：同一個月份，每一年的差別" hint="選一個項目，比較每一年同月份的數值，看今年是偏冷、偏濕還是偏乾">
             <div className="mb-3">
               <Select label="比較項目" value={metric as string} onChange={v => setMetric(v as keyof Monthly)} options={METRICS.map(m => ({ value: m.key as string, label: m.label }))} />
             </div>
@@ -129,7 +125,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
               series: years.map((y, k) => ({
                 name: `${y}`,
                 type: mDef.bar ? 'bar' : 'line',
-                color: C.years[(k + 6 - years.length) % 6],
+                color: yearColor(k, years.length),
                 lineStyle: { width: y === years.at(-1) ? 4 : 2 },
                 data: Array.from({ length: 12 }, (_, i) => {
                   const m = monthly.find(x => x.month === `${y}-${String(i + 1).padStart(2, '0')}`);

@@ -47,7 +47,6 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
   }, [data, ids, startIdx, endIdx]);
 
   const toggle = (id: string) => setIds(v => (v.includes(id) ? v.filter(x => x !== id) : [...v, id]));
-  const zoom = [{ type: 'inside' as const }, { type: 'slider' as const, height: 18, bottom: 6 }];
 
   const temp = series('t'), rh = series('rh'), rain = series('rain'), ws = series('ws');
   const firstName = stations.find(s => s.id === ids[0])?.name;
@@ -58,7 +57,7 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
         <div className="flex flex-wrap gap-4 items-end">
           <label className="flex flex-col text-sm text-stone-600 gap-1">
             結束日期
-            <input type="date" value={end} min="2022-01-02" max={lastDay} onChange={e => e.target.value && setEnd(e.target.value)}
+            <input type="date" value={end} min={idx.start.slice(0, 10)} max={lastDay} onChange={e => e.target.value && setEnd(e.target.value)}
               className="border border-stone-300 rounded-lg px-3 py-2 text-base" />
           </label>
           <Select label="顯示天數" value={days} onChange={setDays} options={[1, 3, 7, 14, 30, 60, 90].map(d => ({ value: String(d), label: `${d} 天` }))} />
@@ -94,7 +93,6 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
             <EChart height={360} option={{
               xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
               yAxis: { type: 'value', name: '°C', scale: true },
-              dataZoom: zoom, grid: { bottom: 60 },
               series: temp.map((s, k) => ({
                 name: s.name, type: 'line', data: s.col, color: s.color, symbol: 'none', connectNulls: false,
                 lineStyle: { width: s.id === 'composite' ? 3 : 1.5 },
@@ -106,7 +104,6 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
             <EChart option={{
               xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
               yAxis: { type: 'value', name: 'mm' },
-              dataZoom: zoom, grid: { bottom: 60 },
               series: rain.map(s => ({ name: s.name, type: 'bar', data: s.col, color: s.color, barGap: 0 })),
             }} />
           </Card>
@@ -115,7 +112,6 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
               <EChart option={{
                 xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
                 yAxis: { type: 'value', name: '%', max: 100, min: (v: { min: number }) => Math.max(0, Math.floor(v.min / 10) * 10) },
-                dataZoom: [{ type: 'inside' }],
                 series: rh.map(s => ({
                   name: s.name, type: 'line', data: s.col, color: s.color, symbol: 'none',
                   markLine: { silent: true, symbol: 'none', data: [{ yAxis: 90 }], lineStyle: { color: C.rh, type: 'dashed' }, label: { formatter: '90%' } },
@@ -126,7 +122,6 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
               <EChart option={{
                 xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
                 yAxis: { type: 'value', name: 'm/s' },
-                dataZoom: [{ type: 'inside' }],
                 series: ws.map(s => ({
                   name: s.name, type: 'line', data: s.col, color: s.color, symbol: 'none',
                   markLine: { silent: true, symbol: 'none', data: [{ yAxis: 3 }], lineStyle: { color: C.wind, type: 'dashed' }, label: { formatter: '3 m/s' } },

@@ -1,5 +1,5 @@
 // 資料讀取與時間軸工具
-// 所有資料對齊同一條逐時時間軸：index 0 = 2022-01-01 01:00（台灣時間），代表 00:00~01:00 這一小時
+// 所有資料對齊同一條逐時時間軸：index 0 = 2015-01-01 01:00（台灣時間），代表 00:00~01:00 這一小時
 
 export type Col = (number | null)[];
 export type Cols = Record<string, Col>;
@@ -25,7 +25,7 @@ export interface DataIndex {
   stations: StationMeta[];
 }
 
-export const T0 = Date.UTC(2022, 0, 1, 1);
+export const T0 = Date.UTC(2015, 0, 1, 1);
 
 /** index → 台灣時間（用 UTC 欄位表示） */
 export const timeOf = (i: number) => new Date(T0 + i * 3600e3);
@@ -87,8 +87,8 @@ export const LAPSE = 0.6; // 每升高 100m 氣溫約降 0.6°C
 
 /** 各項目依序取用的測站（前面的有值就用前面的） */
 export const COMPOSITE_ORDER: Record<string, string[]> = {
-  t: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10'],
-  rh: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10'],
+  t: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10', 'C0U710'],
+  rh: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10', 'C0U710'],
   rain: ['C0C800', 'wra-21C070', 'wra-21C090', 'C1C840', 'wra-21C080', 'C0C460'],
   ws: ['C0C800', 'C0UB60', 'C0UA30'],
   gust: ['C0C800', 'C0UB60', 'C0UA30'],
@@ -148,9 +148,9 @@ export function compositeMeta(idx: DataIndex): StationMeta {
     name: '上巴陵綜合（建議）',
     elevation: idx.site.elevation,
     distKm: 0,
-    from: '2022-01-01',
+    from: idx.start.slice(0, 10),
     to: idx.generatedAt.slice(0, 10),
-    note: '氣溫/濕度/風：四稜→明池→白嶺→鴛鴦湖（氣溫依海拔換算）；雨量：四稜→水利署巴陵→嘎拉賀→大曼→高義→復興；土壤/日射/蒸發散：Open-Meteo',
+    note: '氣溫/濕度：四稜→明池→白嶺→鴛鴦湖→太平山（2018 年以前，氣溫依海拔換算）；風：四稜→明池→白嶺；雨量：四稜→水利署巴陵→嘎拉賀→大曼→高義→復興；土壤/日射/蒸發散：Open-Meteo',
     fields: Object.keys(COMPOSITE_ORDER),
     count: {},
   };

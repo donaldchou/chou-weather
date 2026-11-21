@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import EChart, { C } from './EChart';
+import EChart, { C, yearColor } from './EChart';
 import { useStations } from './useStation';
 import { DataIndex, StationMeta } from '@/lib/data';
 import { chillByWinter, gddByYear, Monthly, RULES, toDaily, toMonthly } from '@/lib/agri';
@@ -61,7 +61,7 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
               } },
               series: winters.map((w, k) => ({
                 name: `${w.label}（${w.total}h${w.coverage < 0.9 ? '，資料不完整' : ''}）`, type: 'line', symbol: 'none', data: w.points,
-                color: C.years[(k + 6 - winters.length) % 6], lineStyle: { width: k === winters.length - 1 ? 4 : 2 },
+                color: yearColor(k, winters.length), lineStyle: { width: k === winters.length - 1 ? 4 : 2 },
               })),
             }} />
           </Card>
@@ -77,7 +77,7 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
               xAxis: { type: 'category', data: Array.from({ length: 12 }, (_, i) => `${i + 1}月`) },
               yAxis: { type: 'value', name: '小時' },
               series: years.map((y, k) => ({
-                name: y, type: 'bar', color: C.years[(k + 6 - years.length) % 6],
+                name: y, type: 'bar', color: yearColor(k, years.length),
                 data: Array.from({ length: 12 }, (_, i) => {
                   const m = monthly.find(x => x.month === `${y}-${String(i + 1).padStart(2, '0')}`);
                   return m && m.coverage > 0.3 ? (m[hm] as number) : null;
@@ -97,7 +97,7 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
               } },
               series: gdd.map((g, k) => ({
                 name: g.label, type: 'line', symbol: 'none', data: g.points,
-                color: C.years[(k + 6 - gdd.length) % 6], lineStyle: { width: k === gdd.length - 1 ? 4 : 2 },
+                color: yearColor(k, gdd.length), lineStyle: { width: k === gdd.length - 1 ? 4 : 2 },
               })),
             }} />
           </Card>
@@ -107,7 +107,6 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
               <EChart option={{
                 xAxis: { type: 'category', data: monthly.map(m => m.month) },
                 yAxis: { type: 'value', name: 'mm' },
-                dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }], grid: { bottom: 60 },
                 series: [
                   { name: '月雨量', type: 'bar', data: monthly.map(m => m.rain), color: C.rain },
                   { name: 'ET0 蒸發散', type: 'line', data: omMonthly.map(m => m.et0), color: C.sun, lineStyle: { width: 3 } },
@@ -118,7 +117,6 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
               <EChart option={{
                 xAxis: { type: 'category', data: omMonthly.map(m => m.month) },
                 yAxis: [{ type: 'value', name: '°C', scale: true }, { type: 'value', name: '含水 %', scale: true, splitLine: { show: false } }],
-                dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }], grid: { bottom: 60 },
                 series: [
                   { name: '土溫 0–7cm', type: 'line', data: omMonthly.map(m => m.soilT0), color: C.soil, symbol: 'none' },
                   { name: '表土含水 0–7cm', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.soilM0), color: C.rain, symbol: 'none' },
@@ -132,7 +130,6 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
             <EChart option={{
               xAxis: { type: 'category', data: omMonthly.map(m => m.month) },
               yAxis: [{ type: 'value', name: 'MJ/m²' }, { type: 'value', name: '小時', splitLine: { show: false } }],
-              dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 6 }], grid: { bottom: 60 },
               series: [
                 { name: '月日射量', type: 'bar', data: omMonthly.map(m => m.rad), color: '#ffd166' },
                 { name: '月日照時數', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.sun), color: C.sun },

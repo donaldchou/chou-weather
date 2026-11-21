@@ -1,4 +1,4 @@
-// 抓取 2022-01-01 起的逐時天氣資料，整理成 public/data/*.json
+// 抓取 2015-01-01 起的逐時天氣資料，整理成 public/data/*.json
 // 用法：node scripts/fetch-data.mjs [--only=C0C800,wra-21C070,openmeteo]
 // 已抓過的月份會快取在 data-cache/，重跑只會補抓缺的與當月。
 import fs from 'node:fs';
@@ -11,7 +11,7 @@ const OUT = path.join(ROOT, 'public', 'data');
 fs.mkdirSync(CACHE, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });
 
-const START = '2022-01-01';
+const START = '2015-01-01';
 const now = new Date(Date.now() + 8 * 3600e3); // 台灣時間
 const TODAY = now.toISOString().slice(0, 10);
 const THIS_MONTH = TODAY.slice(0, 7);
@@ -23,9 +23,10 @@ export const STATIONS = [
   // 中央氣象署（CODiS 氣候觀測資料查詢服務）— 實測
   { id: 'C0C800', source: 'cwa', stnType: 'auto_C0', name: '四稜', elevation: 1167, distKm: 3, from: '2025-03-27', note: '離上巴陵最近、海拔最接近的氣象署測站（2025/3 起才有）' },
   { id: 'C0UB60', source: 'cwa', stnType: 'auto_C0', name: '明池', elevation: 1163, distKm: 7, from: '2025-03-27', note: '海拔相近，2025/3 起' },
-  { id: 'C0UA30', source: 'cwa', stnType: 'auto_C0', name: '白嶺', elevation: 1397, distKm: 19, from: START, note: '2022 年起完整，海拔稍高' },
-  { id: 'C0UA10', source: 'cwa', stnType: 'auto_C0', name: '鴛鴦湖', elevation: 1711, distKm: 9, from: START, note: '2022 年起完整，海拔高約 500m，氣溫偏低' },
-  { id: 'C0C460', source: 'cwa', stnType: 'auto_C0', name: '復興', elevation: 482, distKm: 18, from: START, note: '復興區山下（角板山），氣溫偏高' },
+  { id: 'C0UA30', source: 'cwa', stnType: 'auto_C0', name: '白嶺', elevation: 1397, distKm: 19, from: START, note: '2017/12 底起，海拔稍高' },
+  { id: 'C0UA10', source: 'cwa', stnType: 'auto_C0', name: '鴛鴦湖', elevation: 1711, distKm: 9, from: START, note: '2018/1 底起，海拔高約 500m，氣溫偏低' },
+  { id: 'C0C460', source: 'cwa', stnType: 'auto_C0', name: '復興', elevation: 482, distKm: 18, from: START, note: '復興區山下（角板山），2015 年起完整，氣溫偏高' },
+  { id: 'C0U710', source: 'cwa', stnType: 'auto_C0', name: '太平山', elevation: 1942, distKm: 22, from: START, note: '宜蘭太平山，海拔高約 740m；2018 年以前附近高山只有這站有氣溫，綜合資料 2015~2017 用它換算（驗證：日最低溫與白嶺平均差 0.8°C）' },
   { id: 'C1C840', source: 'cwa', stnType: 'auto_C1', name: '大曼', elevation: 688, distKm: 1, from: '2026-10-28', note: '雨量站，2026/10 新設' },
   // 經濟部水利署 水文資訊網 — 實測雨量（年報整理後公開，目前到 2025 年底）
   { id: 'wra-21C070', wraNo: '21C070', source: 'wra', name: '巴陵（水利署）', elevation: 1220, distKm: 1, from: START, note: '北區水資源分署雨量站，海拔與上巴陵幾乎相同' },
@@ -62,8 +63,8 @@ function months(from, to) {
 }
 const lastDay = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
 
-// 全部資料對齊到同一條時間軸：2022-01-01 01:00 ~ 今天 23:00（台灣時間，整點，代表前一小時）
-const T0 = Date.UTC(2022, 0, 1, 1) ; // 以「台灣時間當 UTC」計算，避免時區轉換
+// 全部資料對齊到同一條時間軸：2015-01-01 01:00 ~ 今天 23:00（台灣時間，整點，代表前一小時）
+const T0 = Date.UTC(+START.slice(0, 4), 0, 1, 1); // 以「台灣時間當 UTC」計算，避免時區轉換
 const hourIndex = key => Math.round((Date.parse(key.slice(0, 13) + ':00:00Z') - T0) / 3600e3);
 const N_HOURS = hourIndex(TODAY + 'T23') + 1;
 
@@ -186,7 +187,7 @@ const OM_VARS = {
 async function buildOpenMeteo(st) {
   const cols = Object.fromEntries(Object.keys(OM_VARS).map(f => [f, new Array(N_HOURS).fill(null)]));
   const years = [];
-  for (let y = 2022; y <= +TODAY.slice(0, 4); y++) years.push(y);
+  for (let y = +START.slice(0, 4); y <= +TODAY.slice(0, 4); y++) years.push(y);
   for (const y of years) {
     const file = path.join(CACHE, st.id, `${y}.json`);
     let j;
@@ -222,7 +223,7 @@ async function buildOpenMeteo(st) {
 
 // ---------- main ----------
 const only = process.argv.find(a => a.startsWith('--only='))?.slice(7).split(',');
-const index = { generatedAt: new Date().toISOString(), start: '2022-01-01T01', hours: N_HOURS, site: SITE, stations: [] };
+const index = { generatedAt: new Date().toISOString(), start: START + 'T01', hours: N_HOURS, site: SITE, stations: [] };
 const prevIndexFile = path.join(OUT, 'index.json');
 const prev = fs.existsSync(prevIndexFile) ? JSON.parse(fs.readFileSync(prevIndexFile, 'utf8')) : null;
 
@@ -249,6 +250,10 @@ for (const st of STATIONS) {
   const count = Object.fromEntries(Object.entries(cols).map(([f, a]) => [f, a.filter(v => v != null).length]));
   fs.writeFileSync(path.join(OUT, `${st.id}.json`), JSON.stringify({ id: st.id, start: index.start, cols }));
   const { stnType, wraNo, ...meta } = st;
+  // 實際第一筆資料的日期（測站設站日期常比清單上寫的早或晚）
+  let first = Infinity;
+  for (const a of Object.values(cols)) { const k = a.findIndex(v => v != null); if (k >= 0 && k < first) first = k; }
+  if (Number.isFinite(first)) meta.from = new Date(T0 + first * 3600e3 - 3600e3).toISOString().slice(0, 10);
   index.stations.push({ ...meta, to: st.to ?? TODAY, fields: Object.keys(cols), count });
   console.log(`  ✓ ${st.name}：${Object.entries(count).map(([f, n]) => `${f}=${n}`).join(' ')}`);
 }
