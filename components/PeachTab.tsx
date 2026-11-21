@@ -1,10 +1,11 @@
 'use client';
 import { useMemo } from 'react';
-import EChart, { C, yearColor } from './EChart';
+import EChart, { yearColor } from './EChart';
+import YearOverlayCard from './YearOverlayCard';
 import { useStations } from './useStation';
 import { useSaved } from '@/lib/saved';
 import { DataIndex, srcFor, srcOf, srcTags, StationMeta } from '@/lib/data';
-import { chillByWinter, chillWinterMonths, gddByYear, Monthly, RULES, toDaily, toMonthly, WINTER_MONTH_LABELS } from '@/lib/agri';
+import { chillByWinter, gddByYear, Monthly, RULES, toDaily, toMonthly } from '@/lib/agri';
 import { Card, Loading, Select } from './ui';
 
 const HOUR_METRICS: { key: keyof Monthly; rule: { label: string; desc: string }; fields: string[] }[] = [
@@ -25,7 +26,6 @@ const gddTitle = (v: number | string) => dateLabel('2023-01-01', +v);
 
 export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
   const [sid, setSid] = useSaved('peach:station', 'composite', v => stations.some(s => s.id === v));
-  const [hm, setHm] = useSaved<keyof Monthly>('peach:metric', 'frost', v => HOUR_METRICS.some(m => m.key === v));
   const ids = sid === 'openmeteo' || sid === 'composite' ? [sid] : [sid, 'openmeteo'];
   const { data, loading } = useStations(ids);
   const cols = data[sid];
@@ -35,25 +35,15 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
   const monthly = useMemo(() => toMonthly(daily), [daily]);
   const winters = useMemo(() => chillByWinter(daily), [daily]);
   const gdd = useMemo(() => gddByYear(daily), [daily]);
-  const chillWinters = useMemo(() => chillWinterMonths(monthly, idx.generatedAt.slice(0, 10)), [monthly, idx.generatedAt]);
+  const today = idx.generatedAt.slice(0, 10);
   const omMonthly = useMemo(() => (om ? toMonthly(toDaily(om, idx.hours)) : []), [om, idx.hours]);
   const years = [...new Set(monthly.map(m => m.month.slice(0, 4)))];
-  const mDef = HOUR_METRICS.find(m => m.key === hm)!;
   const tempStations = stations.filter(s => s.fields.includes('t') || s.id === 'composite');
   const meta = stations.find(s => s.id === sid);
   const omMeta = stations.find(s => s.id === 'openmeteo');
   const srcT = srcFor(meta, ['t']);
 
-  // 日射量、日照：每一年一條線，疊在 1~12 月上比較
   const omYears = [...new Set(omMonthly.map(m => m.month.slice(0, 4)))];
-  const byYear = (key: 'rad' | 'sun') => omYears.map((y, k) => ({
-    name: y, type: 'line' as const, color: yearColor(k, omYears.length),
-    lineStyle: { width: k === omYears.length - 1 ? 4 : 2 },
-    data: Array.from({ length: 12 }, (_, i) => {
-      const m = omMonthly.find(x => x.month === `${y}-${String(i + 1).padStart(2, '0')}`);
-      return m && m.coverage > 0.3 ? m[key] : null;
-    }),
-  }));
   const months12 = Array.from({ length: 12 }, (_, i) => `${i + 1}月`);
 
   // 水分收支：每一年一條線疊在 1~12 月上（月雨量，或 月雨量 − ET0）
@@ -102,40 +92,9 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
             }} />
           </Card>
 
-          <Card
-            title={hm === 'chill' ? '📊 每個冬天的需冷時數（10 月～隔年 3 月）' : `📊 每月 ${mDef.rule.label}`}
-            src={srcFor(meta, mDef.fields)}
-            hint={hm === 'chill'
-              ? `${mDef.rule.desc} 依冬天分組：例如「2025~2026 冬」是 2025 年 10～12 月加上 2026 年 1～3 月，圖例括號是整個冬天的合計。`
-              : mDef.rule.desc}>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {HOUR_METRICS.map(m => (
-                <button key={m.key} onClick={() => setHm(m.key)}
-                  className={`px-3 py-1.5 rounded-full text-sm border ${hm === m.key ? 'bg-stone-800 text-white border-stone-800' : 'bg-white border-stone-300'}`}>{m.rule.label}</button>
-              ))}
-            </div>
-            {hm === 'chill' ? (
-              <EChart height={340} tipUnit=" 小時" option={{
-                xAxis: { type: 'category', data: WINTER_MONTH_LABELS },
-                yAxis: { type: 'value', name: '小時' },
-                series: chillWinters.map((w, k) => ({
-                  name: `${w.label}（${w.total}h）`, type: 'bar', color: yearColor(k, chillWinters.length), data: w.values,
-                })),
-              }} />
-            ) : (
-            <EChart height={340} option={{
-              xAxis: { type: 'category', data: Array.from({ length: 12 }, (_, i) => `${i + 1}月`) },
-              yAxis: { type: 'value', name: '小時' },
-              series: years.map((y, k) => ({
-                name: y, type: 'bar', color: yearColor(k, years.length),
-                data: Array.from({ length: 12 }, (_, i) => {
-                  const m = monthly.find(x => x.month === `${y}-${String(i + 1).padStart(2, '0')}`);
-                  return m && m.coverage > 0.3 ? (m[hm] as number) : null;
-                }),
-              })),
-            }} />
-            )}
-          </Card>
+          <YearOverlayCard title="📊 水蜜桃農事時數（各年比較）" saveKey="peach:metric" statePath="/"
+            monthly={monthly} years={years} meta={meta} today={today}
+            options={HOUR_METRICS.map(m => ({ key: m.key, label: m.rule.label, unit: '小時', fields: m.fields, winter: m.key === 'chill', desc: m.rule.desc }))} />
 
           <Card title="🌡️ 生長度日累積（每年 1/1 起）" src={srcT}hint={`${RULES.gdd.desc} 同一天比較各年的高低，可以預估今年開花、採收會提早還是延後。`}>
             <EChart height={360} tipTitle={gddTitle} option={{
@@ -175,36 +134,25 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
                 })),
               }} />
             </Card>
-            <Card title="🟫 土壤溫度與含水量" src={srcFor(omMeta, ['soilT0', 'soilM0'])}hint="Open-Meteo 衛星與模式推估（非實測），可看土壤乾濕的趨勢，數字僅供參考。">
-              <EChart option={{
-                xAxis: { type: 'category', data: omMonthly.map(m => m.month) },
-                yAxis: [{ type: 'value', name: '°C', scale: true }, { type: 'value', name: '含水 %', scale: true, splitLine: { show: false } }],
-                series: [
-                  { name: '土溫 0–7cm', type: 'line', data: omMonthly.map(m => m.soilT0), color: C.soil, symbol: 'none' },
-                  { name: '表土含水 0–7cm', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.soilM0), color: C.rain, symbol: 'none' },
-                  { name: '深層含水 28–100cm', type: 'line', yAxisIndex: 1, data: omMonthly.map(m => m.soilM28), color: '#1d4e89', symbol: 'none', lineStyle: { type: 'dashed' } },
-                ],
-              }} />
-            </Card>
+            <YearOverlayCard title="🟫 土壤溫度與含水量（各年比較）" saveKey="peach:soil" statePath="/"
+              monthly={omMonthly} years={omYears} meta={omMeta} today={today}
+              hint="Open-Meteo 衛星與模式推估（非實測），可看土壤乾濕的趨勢，數字僅供參考。"
+              options={[
+                { key: 'soilT0', label: '土溫 0–7cm', unit: '°C', fields: ['soilT0'] },
+                { key: 'soilM0', label: '表土含水 0–7cm', unit: '%', fields: ['soilM0'] },
+                { key: 'soilM28', label: '深層含水 28–100cm', unit: '%', fields: ['soilM28'] },
+              ]} />
           </div>
 
           <div className="grid lg:grid-cols-2 gap-5">
-            <Card title="☀️ 每月日射量（各年比較）" src={srcFor(omMeta, ['rad'])}
-              hint="每一年一條線，同一個月份上下比較。日照充足有助果實著色與甜度。今年最後一個月只算到目前為止。">
-              <EChart height={340} tipUnit=" MJ/m²" option={{
-                xAxis: { type: 'category', data: months12 },
-                yAxis: { type: 'value', name: 'MJ/m²' },
-                series: byYear('rad'),
-              }} />
-            </Card>
-            <Card title="🌤️ 每月日照時數（各年比較）" src={srcFor(omMeta, ['sun'])}
-              hint="每一年一條線，同一個月份上下比較。採收前日照少，糖度容易偏低。今年最後一個月只算到目前為止。">
-              <EChart height={340} tipUnit=" 小時" option={{
-                xAxis: { type: 'category', data: months12 },
-                yAxis: { type: 'value', name: '小時' },
-                series: byYear('sun'),
-              }} />
-            </Card>
+            <YearOverlayCard title="☀️ 每月日射量（各年比較）" saveKey="peach:rad" statePath="/"
+              monthly={omMonthly} years={omYears} meta={omMeta} today={today}
+              hint="日照充足有助果實著色與甜度。"
+              options={[{ key: 'rad', label: '月日射量', unit: 'MJ/m²', fields: ['rad'] }]} />
+            <YearOverlayCard title="🌤️ 每月日照時數（各年比較）" saveKey="peach:sun" statePath="/"
+              monthly={omMonthly} years={omYears} meta={omMeta} today={today}
+              hint="採收前日照少，糖度容易偏低。"
+              options={[{ key: 'sun', label: '月日照時數', unit: '小時', fields: ['sun'] }]} />
           </div>
         </>
       )}

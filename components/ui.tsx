@@ -1,5 +1,5 @@
 'use client';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import type { SrcItem } from '@/lib/data';
 import { ChartKeyContext } from './chart-key';
 
@@ -18,16 +18,34 @@ export function SrcTags({ items }: { items: SrcItem[] }) {
 }
 
 export function Card({ title, hint, src, children, className = '' }: { title?: string; hint?: string; src?: SrcItem[]; children: ReactNode; className?: string }) {
+  // 圖表的「放大」會把整個區塊放大成全螢幕（標題、說明、切換按鈕、圖表一起），按 Esc 或「關閉」回原畫面
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFull(false);
+    window.addEventListener('keydown', onKey);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; };
+  }, [full]);
   return (
-    <section className={`bg-white rounded-xl border border-stone-200 shadow-sm p-5 ${className}`}>
+    <section
+      className={full
+        ? 'fixed inset-0 z-50 bg-white p-4 sm:p-6 flex flex-col overflow-y-auto'
+        : `bg-white rounded-xl border border-stone-200 shadow-sm p-5 ${className}`}
+      // 放大時拿掉外層 space-y 加上的間距，否則全螢幕底下會露出一條原本的頁面
+      style={full ? { margin: 0 } : undefined}>
       {title && (
-        <h2 className="text-lg font-bold text-stone-800 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 className={`${full ? 'text-xl' : 'text-lg'} font-bold text-stone-800 flex flex-wrap items-center gap-x-2 gap-y-1`}>
           {title}
           {src && src.length > 0 && <SrcTags items={src} />}
         </h2>
       )}
       {hint && <p className="text-sm text-stone-500 mt-1 mb-3">{hint}</p>}
-      <ChartKeyContext.Provider value={title ? { title, src, hint } : null}>{children}</ChartKeyContext.Provider>
+      <ChartKeyContext.Provider value={title ? { title, src, hint, full, setFull } : null}>
+        {full ? <div className="flex-1 min-h-0 flex flex-col">{children}</div> : children}
+      </ChartKeyContext.Provider>
+      {full && <p className="text-xs text-stone-400 text-center mt-2">在圖上按住滑鼠左右拖曳＝選取區間放大；按「重設縮放」看全部；按 Esc 或「關閉」回到原畫面</p>}
     </section>
   );
 }

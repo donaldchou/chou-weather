@@ -274,6 +274,16 @@ export default function EChart({ option, height = 320, tipTitle, tipUnit, stateK
   const key = stateKey ?? (info ? `chart:${pathname}|${info.title}` : null);
   const { ref, chart } = useChart(option, { tipTitle, tipUnit }, key);
   const close = useCallback(() => setFull(false), []);
+  // 在區塊（Card）裡：放大＝整個區塊全螢幕，同一張圖撐滿剩下的空間（切換按鈕也在畫面上）
+  if (info?.setFull) {
+    const cardFull = !!info.full;
+    return (
+      <div className={cardFull ? 'flex-1 min-h-0 flex flex-col' : ''}>
+        <Toolbar chart={chart} option={option} full={cardFull} onFull={() => info.setFull!(!cardFull)} />
+        <div ref={ref} className={cardFull ? 'flex-1 min-h-[320px] w-full' : 'w-full'} style={cardFull ? undefined : { height }} />
+      </div>
+    );
+  }
   return (
     <div>
       <Toolbar chart={chart} option={option} full={false} onFull={() => setFull(true)} />

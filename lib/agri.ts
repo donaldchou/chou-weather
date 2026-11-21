@@ -20,7 +20,7 @@ export interface Daily {
   sun: number | null; rad: number | null; et0: number | null;
   soilT0: number | null; soilM0: number | null; soilM28: number | null; vpd: number | null;
   chill: number; frost: number; wet: number; heat: number; spray: number;
-  tCount: number; rainCount: number;
+  tCount: number; rainCount: number; rhCount: number;
 }
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
@@ -64,7 +64,7 @@ export function toDaily(cols: Cols, n: number): Daily[] {
       soilT0: mean(acc.soilT0 ?? []), soilM0: mean(acc.soilM0 ?? []), soilM28: mean(acc.soilM28 ?? []),
       vpd: acc.vpd ? Math.round((acc.vpd.reduce((s, x) => s + x, 0) / acc.vpd.length) * 100) / 100 : null,
       chill, frost, wet, heat, spray,
-      tCount: t.length, rainCount: acc.rain?.length ?? 0,
+      tCount: t.length, rainCount: acc.rain?.length ?? 0, rhCount: acc.rh?.length ?? 0,
     });
   }
   return out;
@@ -78,6 +78,7 @@ export interface Monthly {
   sun: number | null; rad: number | null; et0: number | null; soilT0: number | null; soilM0: number | null; soilM28: number | null;
   chill: number; frost: number; wet: number; heat: number; spray: number; gdd: number;
   coverage: number; // 氣溫資料完整度 0~1
+  rhCoverage: number; // 濕度資料完整度 0~1（高濕、噴藥、平均濕度要看這個）
 }
 
 /** 逐日 → 逐月 */
@@ -109,6 +110,7 @@ export function toMonthly(daily: Daily[]): Monthly[] {
       spray: ds.reduce((s, d) => s + d.spray, 0),
       gdd: r1(full.reduce((s, d) => s + Math.max(0, ((d.tMax! + d.tMin!) / 2) - RULES.gdd.base), 0)),
       coverage: ds.reduce((s, d) => s + d.tCount, 0) / (ds.length * 24),
+      rhCoverage: ds.reduce((s, d) => s + d.rhCount, 0) / (ds.length * 24),
     };
   });
 }
