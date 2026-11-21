@@ -27,7 +27,7 @@ export function Card({ title, hint, src, children, className = '' }: { title?: s
         </h2>
       )}
       {hint && <p className="text-sm text-stone-500 mt-1 mb-3">{hint}</p>}
-      <ChartKeyContext.Provider value={title ?? null}>{children}</ChartKeyContext.Provider>
+      <ChartKeyContext.Provider value={title ? { title, src, hint } : null}>{children}</ChartKeyContext.Provider>
     </section>
   );
 }

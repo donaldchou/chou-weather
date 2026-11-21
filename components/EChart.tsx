@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import * as echarts from 'echarts';
 import { readSaved, subscribeSaved, writeSaved } from '@/lib/saved';
 import { ChartKeyContext } from './chart-key';
+import { SrcTags } from './ui';
 
 type Option = echarts.EChartsOption;
 
@@ -238,6 +239,8 @@ function Toolbar({ chart, option, full, onFull }: {
 
 function FullScreen({ option, fmt, stateKey, onClose }: { option: Option; fmt: TipFormat; stateKey: string | null; onClose: () => void }) {
   const { ref, chart } = useChart(option, fmt, stateKey);
+  // 放大畫面上方顯示是哪一個區塊（標題、實際量測值／估算值、說明）
+  const info = useContext(ChartKeyContext);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -247,6 +250,15 @@ function FullScreen({ option, fmt, stateKey, onClose }: { option: Option; fmt: T
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 bg-white flex flex-col p-3 sm:p-5">
+      {info && (
+        <div className="mb-2 border-b border-stone-200 pb-2">
+          <h2 className="text-xl font-bold text-stone-800 flex flex-wrap items-center gap-x-2 gap-y-1">
+            {info.title}
+            {info.src && info.src.length > 0 && <SrcTags items={info.src} />}
+          </h2>
+          {info.hint && <p className="text-sm text-stone-500 mt-1">{info.hint}</p>}
+        </div>
+      )}
       <Toolbar chart={chart} option={option} full onFull={onClose} />
       <div ref={ref} className="flex-1 min-h-0 w-full" />
       <p className="text-xs text-stone-400 text-center mt-1">在圖上按住滑鼠左右拖曳＝選取區間放大；按「重設縮放」看全部；按 Esc 或「關閉」回到原畫面</p>
@@ -258,8 +270,8 @@ function FullScreen({ option, fmt, stateKey, onClose }: { option: Option; fmt: T
 export default function EChart({ option, height = 320, tipTitle, tipUnit, stateKey }: { option: Option; height?: number; stateKey?: string } & TipFormat) {
   const [full, setFull] = useState(false);
   const pathname = usePathname();
-  const cardTitle = useContext(ChartKeyContext);
-  const key = stateKey ?? (cardTitle ? `chart:${pathname}|${cardTitle}` : null);
+  const info = useContext(ChartKeyContext);
+  const key = stateKey ?? (info ? `chart:${pathname}|${info.title}` : null);
   const { ref, chart } = useChart(option, { tipTitle, tipUnit }, key);
   const close = useCallback(() => setFull(false), []);
   return (
