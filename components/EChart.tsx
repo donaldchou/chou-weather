@@ -68,7 +68,7 @@ const enableBrushZoom = (c: echarts.ECharts) =>
   c.dispatchAction({ type: 'takeGlobalCursor', key: 'dataZoomSelect', dataZoomSelectActive: true });
 
 /* ---------------- 記住每張圖的設定（關掉的資料、縮放範圍），放大畫面與 F5 後都還在 ---------------- */
-type ChartState = { off?: string[]; zoom?: [string | number, string | number] };
+type ChartState = { off?: string[]; zoom?: [string | number, string | number]; bold?: string[] };
 
 /** 圖例名稱去掉括號裡會變動的部分（例：「2025~2026 冬（335h）」→「2025~2026 冬」），資料更新後還對得上 */
 const baseName = (name: string) => name.replace(/\s*[（(].*$/, '').trim();
@@ -81,11 +81,27 @@ function loadState(key: string | null): ChartState {
   try { return JSON.parse(readSaved(key) ?? '{}') as ChartState; } catch { return {}; }
 }
 
+/** 點過的折線加粗（線寬 +3、浮到最上層）；再點一次恢復 */
+type SeriesOpt = { name?: string; type?: string; z?: number; lineStyle?: { width?: number } };
+function applyBold(c: echarts.ECharts, option: Option, bold: string[] | undefined) {
+  const set = new Set(bold ?? []);
+  const list = (Array.isArray(option.series) ? option.series : option.series ? [option.series] : []) as SeriesOpt[];
+  c.setOption({
+    series: list.map(se => {
+      if (se.type !== 'line') return { name: se.name };
+      const on = set.has(baseName(String(se.name ?? '')));
+      const w = se.lineStyle?.width ?? 2;
+      return { name: se.name, lineStyle: { width: on ? w + 3 : w }, z: on ? 20 : (se.z ?? 2) };
+    }),
+  });
+}
+
 /** 把記住的設定套到圖上 */
 function applyState(c: echarts.ECharts, option: Option, s: ChartState) {
   const names = seriesNames(option);
   const off = new Set(s.off ?? []);
   c.setOption({ legend: { selected: Object.fromEntries(names.map(n => [n, !off.has(baseName(n))])) } });
+  applyBold(c, option, s.bold);
   if (option.xAxis == null) return;
   if (!s.zoom) {
     c.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
@@ -137,18 +153,34 @@ function useChart(option: Option, fmt: TipFormat, stateKey: string | null) {
     const save = () => {
       if (applying.current || !stateKey) return;
       const s = readState(c, optionRef.current);
+      // 加粗的線圖上讀不出來，沿用記住的
+      const bold = loadState(stateKey).bold;
+      if (bold?.length) s.bold = bold;
       writeSaved(stateKey, Object.keys(s).length ? JSON.stringify(s) : null);
     };
     for (const ev of ['legendselectchanged', 'legendselected', 'legendunselected', 'legendselectall', 'legendinverseselect', 'datazoom']) c.on(ev, save);
     // 另一張同名的圖（放大畫面／原畫面）改了設定 → 這張也跟著變
     const unsub = stateKey ? subscribeSaved(stateKey, () => {
-      const cur = JSON.stringify(readState(c, optionRef.current));
       const want = loadState(stateKey);
-      if (cur === JSON.stringify(want)) return;
+      const cur = { ...readState(c, optionRef.current), ...(want.bold?.length ? { bold: want.bold } : {}) };
       applying.current = true;
-      applyState(c, optionRef.current, want);
+      if (JSON.stringify(cur) === JSON.stringify(want)) applyBold(c, optionRef.current, want.bold);
+      else applyState(c, optionRef.current, want);
       applying.current = false;
     }) : () => {};
+    // 點一下折線：加粗／恢復（沒有記住名稱的圖只在這次畫面有效）
+    let localBold: string[] = [];
+    c.on('click', e => {
+      if (e.componentType !== 'series' || e.seriesType !== 'line') return;
+      const name = baseName(String(e.seriesName ?? ''));
+      const cur = stateKey ? loadState(stateKey) : { bold: localBold };
+      const set = new Set(cur.bold ?? []);
+      if (set.has(name)) set.delete(name); else set.add(name);
+      const next: ChartState = { ...cur, bold: [...set] };
+      if (!next.bold!.length) delete next.bold;
+      if (stateKey) writeSaved(stateKey, Object.keys(next).length ? JSON.stringify(next) : null);
+      else { localBold = next.bold ?? []; applyBold(c, optionRef.current, localBold); }
+    });
     let pos: [number, number] | null = null;
     c.getZr().on('mousemove', e => { pos = [e.offsetX, e.offsetY]; });
     // 滑鼠移到某條線上／離開時，重畫彈出視窗（先 hideTip 才會重新產生內容）
@@ -182,6 +214,7 @@ function useChart(option: Option, fmt: TipFormat, stateKey: string | null) {
   return { ref, chart };
 }
 
+const seriesHasLine = (o: Option) => (Array.isArray(o.series) ? o.series : o.series ? [o.series] : []).some(s => (s as { type?: string }).type === 'line');
 const seriesCount = (o: Option) => (Array.isArray(o.series) ? o.series.length : o.series ? 1 : 0);
 
 const RECENT_YEARS = 6;
@@ -220,7 +253,11 @@ function Toolbar({ chart, option, full, onFull }: {
   const btn = 'px-2.5 py-1 rounded-md border border-stone-300 bg-white hover:bg-stone-100 text-stone-700 text-xs sm:text-sm whitespace-nowrap';
   return (
     <div className="flex flex-wrap justify-end items-center gap-1.5 mb-1">
-      {option.xAxis != null && <span className="text-xs text-stone-400 mr-auto">在圖上按住拖曳，可選取區間放大</span>}
+      {option.xAxis != null && (
+        <span className="text-xs text-stone-400 mr-auto">
+          在圖上按住拖曳，可選取區間放大{seriesHasLine(option) ? '；點一下折線可加粗' : ''}
+        </span>
+      )}
       {recent && <button className={btn} onClick={showRecent}>最近 {RECENT_YEARS} 年</button>}
       {multi && <>
         <button className={btn} onClick={() => chart.current?.dispatchAction({ type: 'legendAllSelect' })}>資料全開</button>

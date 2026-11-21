@@ -45,7 +45,7 @@ export function Card({ title, hint, src, children, className = '' }: { title?: s
       <ChartKeyContext.Provider value={title ? { title, src, hint, full, setFull } : null}>
         {full ? <div className="flex-1 min-h-0 flex flex-col">{children}</div> : children}
       </ChartKeyContext.Provider>
-      {full && <p className="text-xs text-stone-400 text-center mt-2">在圖上按住滑鼠左右拖曳＝選取區間放大；按「重設縮放」看全部；按 Esc 或「關閉」回到原畫面</p>}
+      {full && <p className="text-xs text-stone-400 text-center mt-2">在圖上按住滑鼠左右拖曳＝選取區間放大；點一下折線＝加粗（再點一次恢復）；按「重設縮放」看全部；按 Esc 或「關閉」回到原畫面</p>}
     </section>
   );
 }
