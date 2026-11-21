@@ -32,8 +32,6 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
   const monthly = useMemo(() => (cols ? toMonthly(toDaily(cols, idx.hours)) : []), [cols, idx.hours]);
   const years = useMemo(() => [...new Set(monthly.map(m => m.month.slice(0, 4)))], [monthly]);
   const chillWinters = useMemo(() => chillWinterMonths(monthly, idx.generatedAt.slice(0, 10)), [monthly, idx.generatedAt]);
-  const shown = year === 'all' ? monthly : monthly.filter(m => m.month.startsWith(year));
-  const months = shown.map(m => m.month);
 
   const yearStats = useMemo(() => {
     return years.map(y => {
@@ -82,42 +80,27 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
             ))}
           </div>
 
-          <Card title="每月氣溫" src={srcFor(meta, ['t'])}hint="實線：月平均；上下虛線：月平均最高 / 最低溫；圓點：當月極端最高 / 最低溫">
-            <EChart option={{
-              xAxis: { type: 'category', data: months },
-              yAxis: { type: 'value', name: '°C' },
-              series: [
-                { name: '平均最高溫', type: 'line', data: shown.map(m => m.tMaxMean), lineStyle: { type: 'dashed' }, color: C.tMax, symbol: 'none' },
-                { name: '平均氣溫', type: 'line', data: shown.map(m => m.tMean), color: C.temp, lineStyle: { width: 3 } },
-                { name: '平均最低溫', type: 'line', data: shown.map(m => m.tMinMean), lineStyle: { type: 'dashed' }, color: C.tMin, symbol: 'none' },
-                { name: '極端最高', type: 'scatter', data: shown.map(m => m.tAbsMax), color: C.tMax, symbolSize: 6 },
-                { name: '極端最低', type: 'scatter', data: shown.map(m => m.tAbsMin), color: C.tMin, symbolSize: 6 },
-              ],
-            }} />
-          </Card>
-
-          <div className="grid lg:grid-cols-2 gap-5">
-            <Card title="每月雨量與雨日" src={srcFor(meta, ['rain'])}hint="柱：月雨量 mm；線：下雨天數（日雨量 ≥ 1mm）">
-              <EChart option={{
-                xAxis: { type: 'category', data: months },
-                yAxis: [{ type: 'value', name: 'mm' }, { type: 'value', name: '天', splitLine: { show: false } }],
-                series: [
-                  { name: '月雨量', type: 'bar', data: shown.map(m => m.rain), color: C.rain },
-                  { name: '雨日', type: 'line', yAxisIndex: 1, data: shown.map(m => m.rainDays), color: C.grey },
-                ],
-              }} />
-            </Card>
-            <Card title="每月濕度與高濕時數" src={srcFor(meta, ['rh', 't'])}hint="線：月平均濕度；柱：濕度 ≥90% 且 15~28°C 的小時數（病害好發）">
-              <EChart option={{
-                xAxis: { type: 'category', data: months },
-                yAxis: [{ type: 'value', name: '%', min: 50, max: 100 }, { type: 'value', name: '小時', splitLine: { show: false } }],
-                series: [
-                  { name: '高濕病害時數', type: 'bar', yAxisIndex: 1, data: shown.map(m => m.wet), color: '#c9e4ca' },
-                  { name: '平均濕度', type: 'line', data: shown.map(m => m.rhMean), color: C.rh, lineStyle: { width: 3 } },
-                ],
-              }} />
-            </Card>
-          </div>
+          <YearOverlayCard title="每月氣溫" saveKey="monthly:temp" monthly={monthly} years={years} year={year} meta={meta}
+            hint="「極端最高／最低溫」是當月單一小時量到的最高／最低溫。"
+            options={[
+              { key: 'tMean', label: '平均氣溫', unit: '°C', fields: ['t'] },
+              { key: 'tMaxMean', label: '平均最高溫', unit: '°C', fields: ['t'] },
+              { key: 'tMinMean', label: '平均最低溫', unit: '°C', fields: ['t'] },
+              { key: 'tAbsMax', label: '極端最高溫', unit: '°C', fields: ['t'] },
+              { key: 'tAbsMin', label: '極端最低溫', unit: '°C', fields: ['t'] },
+            ]} />
+          <YearOverlayCard title="每月雨量與雨日" saveKey="monthly:rain" monthly={monthly} years={years} year={year} meta={meta}
+            hint="雨日＝日雨量 ≥ 1mm 的天數。"
+            options={[
+              { key: 'rain', label: '月雨量', unit: 'mm', fields: ['rain'], rain: true },
+              { key: 'rainDays', label: '雨日', unit: '天', fields: ['rain'], rain: true },
+            ]} />
+          <YearOverlayCard title="每月濕度與高濕時數" saveKey="monthly:rh" monthly={monthly} years={years} year={year} meta={meta}
+            hint="高濕病害時數＝濕度 ≥ 90% 且氣溫 15~28°C 的小時數，病害好發。"
+            options={[
+              { key: 'rhMean', label: '平均濕度', unit: '%', fields: ['rh'] },
+              { key: 'wet', label: '高濕病害時數', unit: '小時', fields: ['rh', 't'] },
+            ]} />
 
           <Card title="年度比較：同一個月份，每一年的差別" src={srcFor(meta, mDef.fields)}hint="選一個項目，比較每一年同月份的數值，看今年是偏冷、偏濕還是偏乾">
             <div className="mb-3">
@@ -154,5 +137,56 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
         </>
       )}
     </div>
+  );
+}
+
+/* ---------------- 各年疊在 1~12 月上比較（每年一條線＋歷年平均虛線） ---------------- */
+type OverlayOpt = { key: keyof Monthly; label: string; unit: string; fields: string[]; rain?: boolean };
+const MONTHS12 = Array.from({ length: 12 }, (_, i) => `${i + 1}月`);
+
+function YearOverlayCard({ title, hint, saveKey, options, monthly, years, year, meta }: {
+  title: string; hint: string; saveKey: string; options: OverlayOpt[];
+  monthly: Monthly[]; years: string[]; year: string; meta: StationMeta | undefined;
+}) {
+  const [key, setKey] = useSaved<keyof Monthly>(saveKey, options[0].key, v => options.some(o => o.key === v));
+  const o = options.find(x => x.key === key) ?? options[0];
+  // 雨量看雨量資料的完整度，其他看氣溫資料的完整度
+  const cov = (m: Monthly) => (o.rain ? m.rainCoverage : m.coverage);
+  const byMonth = new Map(monthly.map(m => [m.month, m]));
+  const val = (y: string, i: number) => {
+    const m = byMonth.get(`${y}-${String(i + 1).padStart(2, '0')}`);
+    return m && cov(m) > 0.3 ? (m[o.key] as number | null) : null;
+  };
+  // 歷年平均：只用資料完整（> 70%）的月份
+  const avg = MONTHS12.map((_, i) => {
+    const vals = monthly.filter(m => +m.month.slice(5) === i + 1 && cov(m) > 0.7).map(m => m[o.key]).filter((v): v is number => typeof v === 'number');
+    return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
+  });
+  const shownYears = year === 'all' ? years : years.filter(y => y === year);
+  return (
+    <Card title={`${title}（各年比較）`} src={srcFor(meta, o.fields)}
+      hint={`每一年一條線疊在 1～12 月上，同一個月份上下比較；黑色虛線是歷年平均。${hint}今年最後一個月只算到目前為止。`}>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {options.map(x => (
+          <button key={x.key} onClick={() => setKey(x.key)}
+            className={`px-3 py-1.5 rounded-full text-sm border ${x.key === o.key ? 'bg-stone-800 text-white border-stone-800' : 'bg-white border-stone-300'}`}>{x.label}</button>
+        ))}
+      </div>
+      <EChart height={380} tipUnit={` ${o.unit}`} stateKey={`chart:/monthly|${title}:${o.key}`} option={{
+        xAxis: { type: 'category', data: MONTHS12 },
+        yAxis: { type: 'value', name: o.unit, scale: o.unit === '°C' || o.unit === '%' },
+        series: [
+          ...shownYears.map(y => {
+            const k = years.indexOf(y);
+            return {
+              name: y, type: 'line' as const, color: yearColor(k, years.length),
+              lineStyle: { width: k === years.length - 1 ? 4 : 2 },
+              data: MONTHS12.map((_, i) => val(y, i)),
+            };
+          }),
+          { name: `歷年平均`, type: 'line' as const, data: avg, color: '#292524', symbol: 'none', lineStyle: { width: 3, type: 'dashed' as const }, z: 10 },
+        ],
+      }} />
+    </Card>
   );
 }
