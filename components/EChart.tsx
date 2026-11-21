@@ -187,7 +187,11 @@ const RECENT_YEARS = 6;
 /** 「最近 6 年」怎麼做：每年一條線 → 只開最近 6 條；X 軸是 YYYY-MM 月份 → 縮放到最近 72 個月；都不是就不顯示按鈕 */
 function recentMode(o: Option): { kind: 'series'; names: string[] } | { kind: 'axis'; startValue: number; endValue: number } | null {
   const names = (Array.isArray(o.series) ? o.series : []).map(s => String((s as { name?: string }).name ?? ''));
-  if (names.length > RECENT_YEARS && names.every(n => /^\d{4}/.test(n))) return { kind: 'series', names: names.slice(-RECENT_YEARS) };
+  // 每年一條線（名稱開頭是年份）；其他參考線（例：ET0 歷年平均）一直保留顯示
+  const yearNames = names.filter(n => /^\d{4}/.test(n));
+  if (yearNames.length > RECENT_YEARS && yearNames.length >= names.length - 2) {
+    return { kind: 'series', names: [...yearNames.slice(-RECENT_YEARS), ...names.filter(n => !/^\d{4}/.test(n))] };
+  }
   const x = (Array.isArray(o.xAxis) ? o.xAxis[0] : o.xAxis) as { data?: unknown[] } | undefined;
   const data = x?.data ?? [];
   if (data.length > RECENT_YEARS * 12 && data.every(v => /^\d{4}-\d\d$/.test(String(v)))) {

@@ -56,6 +56,26 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
   }));
   const months12 = Array.from({ length: 12 }, (_, i) => `${i + 1}月`);
 
+  // 水分收支：每一年一條線疊在 1~12 月上（月雨量，或 月雨量 − ET0）
+  const [waterView, setWaterView] = useSaved<'rain' | 'balance'>('peach:water', 'rain', v => v === 'rain' || v === 'balance');
+  const waterYears = [...new Set(monthly.map(m => m.month.slice(0, 4)))];
+  const ymKey = (y: string, i: number) => `${y}-${String(i + 1).padStart(2, '0')}`;
+  const waterByYear = (kind: 'rain' | 'balance') => waterYears.map((y, k) => ({
+    name: y, type: 'line' as const, color: yearColor(k, waterYears.length),
+    lineStyle: { width: k === waterYears.length - 1 ? 4 : 2 },
+    data: Array.from({ length: 12 }, (_, i) => {
+      const rain = monthly.find(x => x.month === ymKey(y, i))?.rain ?? null;
+      if (kind === 'rain') return rain;
+      const et0 = omMonthly.find(x => x.month === ymKey(y, i))?.et0 ?? null;
+      return rain != null && et0 != null ? Math.round((rain - et0) * 10) / 10 : null;
+    }),
+  }));
+  // ET0 各月份的歷年平均（只算完整的月份）
+  const et0Avg = Array.from({ length: 12 }, (_, i) => {
+    const vals = omMonthly.filter(m => +m.month.slice(5) === i + 1 && m.coverage > 0.9 && m.et0 != null).map(m => m.et0!);
+    return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
+  });
+
   return (
     <div className="space-y-5">
       <Card>
@@ -128,15 +148,31 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
             }} />
           </Card>
 
-          <div className="grid lg:grid-cols-2 gap-5">
-            <Card title="💧 水分收支：雨量 vs 蒸發散" src={srcTags([['雨量', srcOf(meta, 'rain')], ['ET0', srcOf(omMeta, 'et0')]])}hint="柱：月雨量（實測）；線：參考蒸發散量 ET0（Open-Meteo 推估）。雨量低於 ET0 的月份，果園可能缺水、需注意灌溉。">
-              <EChart option={{
-                xAxis: { type: 'category', data: monthly.map(m => m.month) },
+          <div className="space-y-5">
+            <Card title="💧 水分收支：雨量 vs 蒸發散（各年比較）" src={srcTags([['雨量', srcOf(meta, 'rain')], ['ET0', srcOf(omMeta, 'et0')]])}
+              hint={waterView === 'rain'
+                ? '每一年一條線：月雨量（實測）。黑色虛線是參考蒸發散量 ET0 的歷年平均（Open-Meteo 推估）；雨量線低於虛線的月份，果園可能缺水、需注意灌溉。今年最後一個月只算到目前為止。'
+                : '每一年一條線：月雨量 − 當月 ET0。高於 0＝雨水有剩，低於 0（紅線以下）＝蒸發比下雨多、可能缺水。今年最後一個月只算到目前為止。'}>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {([['rain', '月雨量（與 ET0 平均比較）'], ['balance', '水分盈虧（雨量 − ET0）']] as const).map(([v, l]) => (
+                  <button key={v} onClick={() => setWaterView(v)}
+                    className={`px-3 py-1.5 rounded-full text-sm border ${waterView === v ? 'bg-stone-800 text-white border-stone-800' : 'bg-white border-stone-300'}`}>{l}</button>
+                ))}
+              </div>
+              <EChart height={380} tipUnit=" mm" stateKey={`chart:/|水分收支:${waterView}`} option={waterView === 'rain' ? {
+                xAxis: { type: 'category', data: months12 },
                 yAxis: { type: 'value', name: 'mm' },
                 series: [
-                  { name: '月雨量', type: 'bar', data: monthly.map(m => m.rain), color: C.rain },
-                  { name: 'ET0 蒸發散', type: 'line', data: omMonthly.map(m => m.et0), color: C.sun, lineStyle: { width: 3 } },
+                  ...waterByYear('rain'),
+                  { name: 'ET0 蒸發散（歷年平均）', type: 'line', data: et0Avg, color: '#292524', symbol: 'none', lineStyle: { width: 3, type: 'dashed' }, z: 10 },
                 ],
+              } : {
+                xAxis: { type: 'category', data: months12 },
+                yAxis: { type: 'value', name: 'mm' },
+                // 0 的紅線每一年都畫（疊在同一位置），只要有任何一年顯示就看得到
+                series: waterByYear('balance').map(s => ({
+                  ...s, markLine: { silent: true, symbol: 'none', data: [{ yAxis: 0 }], lineStyle: { color: '#dc2626', width: 2 }, label: { formatter: '0（雨量＝蒸發）', position: 'insideEndTop', color: '#dc2626' } },
+                })),
               }} />
             </Card>
             <Card title="🟫 土壤溫度與含水量" src={srcFor(omMeta, ['soilT0', 'soilM0'])}hint="Open-Meteo 衛星與模式推估（非實測），可看土壤乾濕的趨勢，數字僅供參考。">
