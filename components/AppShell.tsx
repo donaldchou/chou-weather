@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useSyncExternalStore } from 'react';
 import {
-  BookOpen, CalendarDays, ChevronDown, ChevronsLeft, ChevronsRight, Clock, CloudSun, LogOut, Menu, ShieldCheck, Sprout, UserRound, X,
+  BookOpen, CalendarDays, ChevronDown, ChevronsLeft, ChevronsRight, Clock, LogOut, Menu, ShieldCheck, Sprout, UserRound, X,
 } from 'lucide-react';
 import { logout, useMe } from '@/lib/client';
 import { PlatformLinks } from './PlatformLinks';
@@ -82,9 +82,11 @@ function Shell({ pathname, children }: { pathname: string; children: React.React
           onClick={() => (mini ? setCollapsed(false) : toggleAll())}
           title={mini ? '展開選單' : allClosed ? '全部展開' : '全部收合'}
           aria-label={mini ? '展開選單' : allClosed ? '全部展開' : '全部收合'}
-          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-emerald-600 text-white transition-colors hover:bg-emerald-500"
+          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl transition hover:brightness-110"
         >
-          <CloudSun size={22} />
+          {/* 平台自己的分頁圖示（favicon） */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/platforms/chou-weather.svg" width={40} height={40} alt="" className="block" />
         </button>
         {!mini && (
           <div className="min-w-0">
