@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { connection, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { HttpError, handleError, readJson } from '@/lib/server/api';
 import { requireAdmin, requireUser } from '@/lib/server/auth';
@@ -7,6 +7,8 @@ import { UNLOCK_COOKIE, UNLOCK_HOURS, signUnlock, unlockCookie, verifyUnlock } f
 
 /** GET /api/unlock → { expiresAt }：解鎖中回傳到期時間（毫秒），否則 null */
 export async function GET() {
+  // 每次請求都重新執行（會讀登入 cookie，不能在 build 時預先產生）；放在 try 外面，讓 Next.js 自己處理
+  await connection();
   try {
     const user = await requireUser();
     return NextResponse.json({ expiresAt: await verifyUnlock((await cookies()).get(UNLOCK_COOKIE)?.value, user.id) });

@@ -1,10 +1,30 @@
 'use client';
 import { ReactNode } from 'react';
+import type { SrcItem } from '@/lib/data';
 
-export function Card({ title, hint, children, className = '' }: { title?: string; hint?: string; children: ReactNode; className?: string }) {
+/** 區塊標題後面的「實際量測值／估算值」標籤 */
+export function SrcTags({ items }: { items: SrcItem[] }) {
+  return (
+    <>
+      {items.map((s, k) => (
+        <span key={k} title={s.note}
+          className={`text-xs font-normal px-2 py-0.5 rounded-full whitespace-nowrap align-middle cursor-help ${s.kind === 'measured' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>
+          {s.label ? `${s.label}：` : ''}{s.kind === 'measured' ? '實際量測值' : '估算值'}
+        </span>
+      ))}
+    </>
+  );
+}
+
+export function Card({ title, hint, src, children, className = '' }: { title?: string; hint?: string; src?: SrcItem[]; children: ReactNode; className?: string }) {
   return (
     <section className={`bg-white rounded-xl border border-stone-200 shadow-sm p-5 ${className}`}>
-      {title && <h2 className="text-lg font-bold text-stone-800">{title}</h2>}
+      {title && (
+        <h2 className="text-lg font-bold text-stone-800 flex flex-wrap items-center gap-x-2 gap-y-1">
+          {title}
+          {src && src.length > 0 && <SrcTags items={src} />}
+        </h2>
+      )}
       {hint && <p className="text-sm text-stone-500 mt-1 mb-3">{hint}</p>}
       {children}
     </section>

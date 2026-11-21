@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { connection, NextResponse } from 'next/server';
 import { HttpError, handleError, readJson } from '@/lib/server/api';
 import { assertPassword, hashPassword, requireAdmin, toPublic, type Ll3User } from '@/lib/server/auth';
 import { assertCode } from '@/lib/server/codes';
@@ -6,6 +6,8 @@ import { ll3 } from '@/lib/server/ll3';
 
 /** GET /api/admin/users 所有使用者（管理者在前） */
 export async function GET() {
+  // 每次請求都重新執行（會讀登入 cookie，不能在 build 時預先產生）；放在 try 外面，讓 Next.js 自己處理
+  await connection();
   try {
     await requireAdmin();
     return NextResponse.json((await ll3<Ll3User[]>('user_list')).map(toPublic));

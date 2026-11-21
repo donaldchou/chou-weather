@@ -156,6 +156,37 @@ export function compositeMeta(idx: DataIndex): StationMeta {
   };
 }
 
+// ---------------- 實際量測值／估算值 ----------------
+export type SrcKind = 'measured' | 'estimated';
+export interface SrcItem { kind: SrcKind; label?: string; note: string }
+
+const NOTE_OM = 'Open-Meteo 衛星＋模式推估，不是測站量到的';
+const NOTE_LAPSE = '附近測站量到的氣溫，依海拔換算到上巴陵';
+
+/** 某測站某項目是實測還是估算（adjusted＝氣溫有依海拔換算） */
+export function srcOf(st: StationMeta | undefined, field: string, adjusted = false): Omit<SrcItem, 'label'> {
+  if (!st || st.source === 'openmeteo') return { kind: 'estimated', note: NOTE_OM };
+  if (st.source === 'composite') {
+    if (COMPOSITE_ORDER[field]?.[0] === 'openmeteo') return { kind: 'estimated', note: NOTE_OM };
+    if (field === 't') return { kind: 'estimated', note: NOTE_LAPSE };
+    return { kind: 'measured', note: '附近測站量到的數值（依序取最近、有資料的測站）' };
+  }
+  if (field === 't' && adjusted) return { kind: 'estimated', note: `${st.name}量到的氣溫，依海拔換算到上巴陵` };
+  return { kind: 'measured', note: `${st.name}${st.source === 'wra' ? '（水利署）' : '（氣象署）'}量到的數值` };
+}
+
+/** 一個區塊用到好幾個項目：全部同一種就只標一個，不同就分開標 */
+export function srcTags(parts: [label: string, src: Omit<SrcItem, 'label'>][]): SrcItem[] {
+  if (!parts.length) return [];
+  const same = parts.every(p => p[1].kind === parts[0][1].kind);
+  if (same) return [{ kind: parts[0][1].kind, note: [...new Set(parts.map(p => `${p[0]}：${p[1].note}`))].join('\n') }];
+  return parts.map(([label, s]) => ({ label, ...s }));
+}
+
+/** 單一測站、好幾個項目 */
+export const srcFor = (st: StationMeta | undefined, fields: string[]) =>
+  srcTags(fields.map(f => [FIELD_LABEL[f]?.name ?? f, srcOf(st, f)]));
+
 /** 依海拔換算氣溫 */
 export function adjustTemp(col: Col, fromElev: number, toElev: number): Col {
   const d = ((fromElev - toElev) / 100) * LAPSE;

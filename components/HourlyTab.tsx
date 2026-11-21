@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import EChart, { C } from './EChart';
 import { useStations } from './useStation';
-import { adjustTemp, DataIndex, fmtHour, indexOf, StationMeta, timeOf } from '@/lib/data';
+import { adjustTemp, DataIndex, fmtHour, indexOf, SrcItem, srcOf, StationMeta, timeOf } from '@/lib/data';
 import { RULES } from '@/lib/agri';
 import { Badge, Card, Loading, Select } from './ui';
 
@@ -49,6 +49,17 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
   const toggle = (id: string) => setIds(v => (v.includes(id) ? v.filter(x => x !== id) : [...v, id]));
 
   const temp = series('t'), rh = series('rh'), rain = series('rain'), ws = series('ws');
+
+  // 各測站是實測還是估算：全部一樣只標一個，不一樣就分「實際量測值：A、B」「估算值：C」
+  const srcHourly = (field: string, list: { id: string; name: string }[]): SrcItem[] => {
+    const items = list.map(s => ({ name: s.name, ...srcOf(stations.find(x => x.id === s.id), field, field === 't' && adjust) }));
+    const kinds = [...new Set(items.map(i => i.kind))];
+    if (kinds.length <= 1) return items.length ? [{ kind: items[0].kind, note: items.map(i => `${i.name}：${i.note}`).join('\n') }] : [];
+    return kinds.map(kind => {
+      const g = items.filter(i => i.kind === kind);
+      return { kind, label: g.map(i => i.name).join('、'), note: g.map(i => `${i.name}：${i.note}`).join('\n') };
+    });
+  };
   const firstName = stations.find(s => s.id === ids[0])?.name;
 
   return (
@@ -89,7 +100,7 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
 
       {loading ? <Loading /> : (
         <>
-          <Card title="逐時氣溫" hint={`綠色底色＝${firstName}「適合噴藥」的時段（${RULES.spray.desc}）`}>
+          <Card title="逐時氣溫" src={srcHourly('t', temp)}hint={`綠色底色＝${firstName}「適合噴藥」的時段（${RULES.spray.desc}）`}>
             <EChart height={360} option={{
               xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
               yAxis: { type: 'value', name: '°C', scale: true },
@@ -100,7 +111,7 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
               })),
             }} />
           </Card>
-          <Card title="逐時雨量" hint="每小時雨量（mm）">
+          <Card title="逐時雨量" src={srcHourly('rain', rain)}hint="每小時雨量（mm）">
             <EChart option={{
               xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
               yAxis: { type: 'value', name: 'mm' },
@@ -108,7 +119,7 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
             }} />
           </Card>
           <div className="grid lg:grid-cols-2 gap-5">
-            <Card title="逐時相對濕度" hint="≥ 90% 長時間持續，病害風險高">
+            <Card title="逐時相對濕度" src={srcHourly('rh', rh)}hint="≥ 90% 長時間持續，病害風險高">
               <EChart option={{
                 xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
                 yAxis: { type: 'value', name: '%', max: 100, min: (v: { min: number }) => Math.max(0, Math.floor(v.min / 10) * 10) },
@@ -118,7 +129,7 @@ export default function HourlyTab({ idx, stations }: { idx: DataIndex; stations:
                 })),
               }} />
             </Card>
-            <Card title="逐時平均風速" hint="噴藥建議 < 3 m/s">
+            <Card title="逐時平均風速" src={srcHourly('ws', ws)}hint="噴藥建議 < 3 m/s">
               <EChart option={{
                 xAxis: { type: 'category', data: xs, axisLabel: { formatter: (v: string) => v.slice(5) } },
                 yAxis: { type: 'value', name: 'm/s' },

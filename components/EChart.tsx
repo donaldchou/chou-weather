@@ -30,7 +30,7 @@ function tipHtml(ps: TipParam[], hovered: number | null, fmt: TipFormat) {
   return `<div style="font-weight:600;margin-bottom:2px">${esc(String(title))}</div>${rows.join('')}`;
 }
 
-/** 所有圖表統一：滑鼠在圖上按住拖曳＝選取區間放大、滾輪／兩指縮放、圖例全開全關、放大全螢幕 */
+/** 所有圖表統一：滑鼠在圖上按住拖曳＝選取區間放大（滾輪不縮放）、圖例全開全關、放大全螢幕 */
 function withDefaults(option: Option, hovered: { current: number | null }, fmt: TipFormat): Option {
   const hasAxis = option.xAxis != null;
   const grid = (option.grid ?? {}) as { bottom?: number | string };
@@ -52,8 +52,8 @@ function withDefaults(option: Option, hovered: { current: number | null }, fmt: 
       ? {
           // 拖曳選取靠工具列的 dataZoom 功能（工具列本身不顯示，由程式一直開著選取模式）
           toolbox: { show: true, itemSize: 0, right: -100, feature: { dataZoom: { yAxisIndex: 'none', filterMode: 'none' } } },
-          // 滾輪／兩指縮放；拖曳不平移（拖曳留給選取區間）
-          dataZoom: [{ type: 'inside', xAxisIndex: 0, filterMode: 'none', moveOnMouseMove: false, moveOnMouseWheel: false }],
+          // 不加 inside 縮放：只要有 inside，ECharts 就會攔下滾輪（頁面捲不動）。縮放只靠拖曳選取，
+          // 「最近 6 年」「重設縮放」作用在拖曳選取自動建立的縮放元件上
         }
       : {}),
   };
@@ -165,7 +165,7 @@ function FullScreen({ option, fmt, onClose }: { option: Option; fmt: TipFormat; 
     <div className="fixed inset-0 z-50 bg-white flex flex-col p-3 sm:p-5">
       <Toolbar chart={chart} option={option} full onFull={onClose} />
       <div ref={ref} className="flex-1 min-h-0 w-full" />
-      <p className="text-xs text-stone-400 text-center mt-1">在圖上按住滑鼠左右拖曳＝選取區間放大；滑鼠滾輪或兩指也可縮放；按「重設縮放」看全部；按 Esc 或「關閉」回到原畫面</p>
+      <p className="text-xs text-stone-400 text-center mt-1">在圖上按住滑鼠左右拖曳＝選取區間放大；按「重設縮放」看全部；按 Esc 或「關閉」回到原畫面</p>
     </div>
   );
 }

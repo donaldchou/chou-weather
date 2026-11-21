@@ -133,6 +133,34 @@ export function chillByWinter(daily: Daily[]) {
   return winters;
 }
 
+/** 冬天的月份順序：10 月～隔年 3 月 */
+export const WINTER_MONTHS = [10, 11, 12, 1, 2, 3];
+export const WINTER_MONTH_LABELS = WINTER_MONTHS.map(m => `${m}月`);
+
+/**
+ * 每個冬天（10 月～隔年 3 月）各月的需冷時數，給「依冬天」的柱狀圖用。
+ * 完整度 30% 以下的月份給 null（不畫）；只要有月份缺資料就標「資料不完整」，還沒過完的冬天標「進行中」。
+ */
+export function chillWinterMonths(monthly: Monthly[], today: string) {
+  const byMonth = new Map(monthly.map(m => [m.month, m]));
+  const years = [...new Set(monthly.map(m => +m.month.slice(0, 4)))];
+  const out: { label: string; values: (number | null)[]; total: number }[] = [];
+  for (const y of [years[0] - 1, ...years]) {
+    const keys = WINTER_MONTHS.map(m => `${m >= 10 ? y : y + 1}-${String(m).padStart(2, '0')}`);
+    const ms = keys.map(k => byMonth.get(k));
+    if (!ms.some(m => m && m.coverage > 0.3)) continue;
+    const values = ms.map(m => (m && m.coverage > 0.3 ? m.chill : null));
+    const ongoing = keys[5] >= today.slice(0, 7);
+    const partial = !ongoing && ms.some(m => !m || m.coverage < 0.9);
+    out.push({
+      label: `${y}~${y + 1} 冬${ongoing ? '（進行中）' : partial ? '（資料不完整）' : ''}`,
+      values,
+      total: values.reduce<number>((s, v) => s + (v ?? 0), 0),
+    });
+  }
+  return out;
+}
+
 /** 每年 1/1 起的生長度日累積 */
 export function gddByYear(daily: Daily[]) {
   const years = [...new Set(daily.map(d => d.day.slice(0, 4)))];

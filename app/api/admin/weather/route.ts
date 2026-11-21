@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { connection, NextResponse } from 'next/server';
 import { HttpError, handleError, readJson } from '@/lib/server/api';
 import { requireAdmin } from '@/lib/server/auth';
 import { assertCode } from '@/lib/server/codes';
@@ -16,6 +16,8 @@ import { ll3 } from '@/lib/server/ll3';
 const DAY = /^\d{4}-\d\d-\d\d$/;
 
 export async function GET(req: Request) {
+  // 每次請求都重新執行（會讀登入 cookie，不能在 build 時預先產生）；放在 try 外面，讓 Next.js 自己處理
+  await connection();
   try {
     await requireAdmin();
     const q = new URL(req.url).searchParams;

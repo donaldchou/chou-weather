@@ -2,22 +2,23 @@
 import { useMemo, useState } from 'react';
 import EChart, { C, yearColor } from './EChart';
 import { useStations } from './useStation';
-import { DataIndex, StationMeta } from '@/lib/data';
-import { Monthly, toDaily, toMonthly } from '@/lib/agri';
-import { Card, Select, Stat, Loading } from './ui';
+import { DataIndex, srcFor, StationMeta } from '@/lib/data';
+import { chillWinterMonths, Monthly, toDaily, toMonthly, WINTER_MONTH_LABELS } from '@/lib/agri';
+import { Card, Select, SrcTags, Stat, Loading } from './ui';
 
-const METRICS: { key: keyof Monthly; label: string; unit: string; bar?: boolean }[] = [
-  { key: 'tMean', label: '月平均氣溫', unit: '°C' },
-  { key: 'tMinMean', label: '月平均最低溫', unit: '°C' },
-  { key: 'tMaxMean', label: '月平均最高溫', unit: '°C' },
-  { key: 'rain', label: '月雨量', unit: 'mm', bar: true },
-  { key: 'rainDays', label: '雨日（≥1mm）', unit: '天', bar: true },
-  { key: 'rhMean', label: '月平均濕度', unit: '%' },
-  { key: 'chill', label: '需冷時數（0~7.2°C）', unit: '小時', bar: true },
-  { key: 'frost', label: '霜害風險時數（≤2°C）', unit: '小時', bar: true },
-  { key: 'wet', label: '高濕病害時數', unit: '小時', bar: true },
-  { key: 'spray', label: '適合噴藥時數', unit: '小時', bar: true },
-  { key: 'gdd', label: '生長度日', unit: '°C·日', bar: true },
+// fields：這個項目是用哪些觀測項目算出來的（決定標「實際量測值」或「估算值」）
+const METRICS: { key: keyof Monthly; label: string; unit: string; bar?: boolean; fields: string[] }[] = [
+  { key: 'tMean', label: '月平均氣溫', unit: '°C', fields: ['t'] },
+  { key: 'tMinMean', label: '月平均最低溫', unit: '°C', fields: ['t'] },
+  { key: 'tMaxMean', label: '月平均最高溫', unit: '°C', fields: ['t'] },
+  { key: 'rain', label: '月雨量', unit: 'mm', bar: true, fields: ['rain'] },
+  { key: 'rainDays', label: '雨日（≥1mm）', unit: '天', bar: true, fields: ['rain'] },
+  { key: 'rhMean', label: '月平均濕度', unit: '%', fields: ['rh'] },
+  { key: 'chill', label: '需冷時數（0~7.2°C）', unit: '小時', bar: true, fields: ['t'] },
+  { key: 'frost', label: '霜害風險時數（≤2°C）', unit: '小時', bar: true, fields: ['t'] },
+  { key: 'wet', label: '高濕病害時數', unit: '小時', bar: true, fields: ['rh', 't'] },
+  { key: 'spray', label: '適合噴藥時數', unit: '小時', bar: true, fields: ['t', 'rh', 'rain', 'ws'] },
+  { key: 'gdd', label: '生長度日', unit: '°C·日', bar: true, fields: ['t'] },
 ];
 
 export default function OverviewTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
@@ -29,6 +30,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
 
   const monthly = useMemo(() => (cols ? toMonthly(toDaily(cols, idx.hours)) : []), [cols, idx.hours]);
   const years = useMemo(() => [...new Set(monthly.map(m => m.month.slice(0, 4)))], [monthly]);
+  const chillWinters = useMemo(() => chillWinterMonths(monthly, idx.generatedAt.slice(0, 10)), [monthly, idx.generatedAt]);
   const shown = year === 'all' ? monthly : monthly.filter(m => m.month.startsWith(year));
   const months = shown.map(m => m.month);
 
@@ -68,6 +70,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
             {(year === 'all' ? yearStats : yearStats.filter(s => s.y === year)).slice(-4).map(s => (
               <Card key={s.y} className="!p-4">
                 <div className="font-semibold text-stone-700 mb-2">{s.y} 年{s.months < 12 && <span className="text-xs text-stone-400">（{s.months} 個月）</span>}</div>
+                <div className="flex flex-wrap gap-1 mb-2"><SrcTags items={srcFor(meta, ['rain', 't'])} /></div>
                 <div className="grid grid-cols-2 gap-2">
                   <Stat label="雨量" value={s.rain} unit="mm" color={C.rain} />
                   <Stat label="年均溫" value={s.tMean} unit="°C" color={C.temp} />
@@ -78,7 +81,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
             ))}
           </div>
 
-          <Card title="每月氣溫" hint="實線：月平均；上下虛線：月平均最高 / 最低溫；圓點：當月極端最高 / 最低溫">
+          <Card title="每月氣溫" src={srcFor(meta, ['t'])}hint="實線：月平均；上下虛線：月平均最高 / 最低溫；圓點：當月極端最高 / 最低溫">
             <EChart option={{
               xAxis: { type: 'category', data: months },
               yAxis: { type: 'value', name: '°C' },
@@ -93,7 +96,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
           </Card>
 
           <div className="grid lg:grid-cols-2 gap-5">
-            <Card title="每月雨量與雨日" hint="柱：月雨量 mm；線：下雨天數（日雨量 ≥ 1mm）">
+            <Card title="每月雨量與雨日" src={srcFor(meta, ['rain'])}hint="柱：月雨量 mm；線：下雨天數（日雨量 ≥ 1mm）">
               <EChart option={{
                 xAxis: { type: 'category', data: months },
                 yAxis: [{ type: 'value', name: 'mm' }, { type: 'value', name: '天', splitLine: { show: false } }],
@@ -103,7 +106,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
                 ],
               }} />
             </Card>
-            <Card title="每月濕度與高濕時數" hint="線：月平均濕度；柱：濕度 ≥90% 且 15~28°C 的小時數（病害好發）">
+            <Card title="每月濕度與高濕時數" src={srcFor(meta, ['rh', 't'])}hint="線：月平均濕度；柱：濕度 ≥90% 且 15~28°C 的小時數（病害好發）">
               <EChart option={{
                 xAxis: { type: 'category', data: months },
                 yAxis: [{ type: 'value', name: '%', min: 50, max: 100 }, { type: 'value', name: '小時', splitLine: { show: false } }],
@@ -115,10 +118,22 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
             </Card>
           </div>
 
-          <Card title="年度比較：同一個月份，每一年的差別" hint="選一個項目，比較每一年同月份的數值，看今年是偏冷、偏濕還是偏乾">
+          <Card title="年度比較：同一個月份，每一年的差別" src={srcFor(meta, mDef.fields)}hint="選一個項目，比較每一年同月份的數值，看今年是偏冷、偏濕還是偏乾">
             <div className="mb-3">
               <Select label="比較項目" value={metric as string} onChange={v => setMetric(v as keyof Monthly)} options={METRICS.map(m => ({ value: m.key as string, label: m.label }))} />
             </div>
+            {metric === 'chill' ? (
+              <>
+                <p className="mb-2 text-sm text-stone-500">需冷時數依冬天（10 月～隔年 3 月）分組：例如「2025~2026 冬」是 2025 年 10～12 月加上 2026 年 1～3 月，圖例括號是整個冬天的合計。</p>
+                <EChart height={360} tipUnit=" 小時" option={{
+                  xAxis: { type: 'category', data: WINTER_MONTH_LABELS },
+                  yAxis: { type: 'value', name: mDef.unit },
+                  series: chillWinters.map((w, k) => ({
+                    name: `${w.label}（${w.total}h）`, type: 'bar', color: yearColor(k, chillWinters.length), data: w.values,
+                  })),
+                }} />
+              </>
+            ) : (
             <EChart height={360} option={{
               xAxis: { type: 'category', data: Array.from({ length: 12 }, (_, i) => `${i + 1}月`) },
               yAxis: { type: 'value', name: mDef.unit, scale: !mDef.bar },
@@ -133,6 +148,7 @@ export default function OverviewTab({ idx, stations }: { idx: DataIndex; station
                 }),
               })),
             }} />
+            )}
           </Card>
         </>
       )}
