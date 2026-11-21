@@ -6,6 +6,7 @@ import {
   BookOpen, CalendarDays, ChevronDown, ChevronsLeft, ChevronsRight, Clock, CloudSun, LogOut, Menu, ShieldCheck, Sprout, UserRound, X,
 } from 'lucide-react';
 import { logout, useMe } from '@/lib/client';
+import { PlatformLinks } from './PlatformLinks';
 
 /** 左側選單（同 chou-platform 的機制） */
 const NAV = [
@@ -135,6 +136,7 @@ function Shell({ pathname, children }: { pathname: string; children: React.React
         })}
       </div>
       <div className="space-y-1 border-t border-emerald-800 p-3">
+        <PlatformLinks current="chou-weather" mini={mini} captionClass="text-emerald-300/70" />
         <div className={`flex items-center gap-2 text-base text-emerald-100 ${mini ? 'justify-center' : 'px-2'}`}
           title={me ? `${me.email}（${roleLabel}）` : undefined}>
           <UserRound size={18} className="shrink-0" />
