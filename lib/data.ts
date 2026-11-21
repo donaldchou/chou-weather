@@ -1,5 +1,5 @@
 // 資料讀取與時間軸工具
-// 所有資料對齊同一條逐時時間軸：index 0 = 2015-01-01 01:00（台灣時間），代表 00:00~01:00 這一小時
+// 所有資料對齊同一條逐時時間軸：index 0 = 2010-01-01 01:00（台灣時間），代表 00:00~01:00 這一小時
 
 export type Col = (number | null)[];
 export type Cols = Record<string, Col>;
@@ -25,7 +25,7 @@ export interface DataIndex {
   stations: StationMeta[];
 }
 
-export const T0 = Date.UTC(2015, 0, 1, 1);
+export const T0 = Date.UTC(2010, 0, 1, 1);
 
 /** index → 台灣時間（用 UTC 欄位表示） */
 export const timeOf = (i: number) => new Date(T0 + i * 3600e3);

@@ -1,4 +1,4 @@
-// 抓取 2015-01-01 起的逐時天氣資料，整理成 public/data/*.json
+// 抓取 2010-01-01 起的逐時天氣資料，整理成 public/data/*.json
 // 用法：node scripts/fetch-data.mjs [--only=C0C800,wra-21C070,openmeteo]
 // 已抓過的月份會快取在 data-cache/，重跑只會補抓缺的與當月。
 import fs from 'node:fs';
@@ -11,7 +11,7 @@ const OUT = path.join(ROOT, 'public', 'data');
 fs.mkdirSync(CACHE, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });
 
-const START = '2015-01-01';
+const START = '2010-01-01';
 const now = new Date(Date.now() + 8 * 3600e3); // 台灣時間
 const TODAY = now.toISOString().slice(0, 10);
 const THIS_MONTH = TODAY.slice(0, 7);
@@ -25,8 +25,8 @@ export const STATIONS = [
   { id: 'C0UB60', source: 'cwa', stnType: 'auto_C0', name: '明池', elevation: 1163, distKm: 7, from: '2025-03-27', note: '海拔相近，2025/3 起' },
   { id: 'C0UA30', source: 'cwa', stnType: 'auto_C0', name: '白嶺', elevation: 1397, distKm: 19, from: START, note: '2017/12 底起，海拔稍高' },
   { id: 'C0UA10', source: 'cwa', stnType: 'auto_C0', name: '鴛鴦湖', elevation: 1711, distKm: 9, from: START, note: '2018/1 底起，海拔高約 500m，氣溫偏低' },
-  { id: 'C0C460', source: 'cwa', stnType: 'auto_C0', name: '復興', elevation: 482, distKm: 18, from: START, note: '復興區山下（角板山），2015 年起完整，氣溫偏高' },
-  { id: 'C0U710', source: 'cwa', stnType: 'auto_C0', name: '太平山', elevation: 1942, distKm: 22, from: START, note: '宜蘭太平山，海拔高約 740m；2018 年以前附近高山只有這站有氣溫，綜合資料 2015~2017 用它換算（驗證：日最低溫與白嶺平均差 0.8°C）' },
+  { id: 'C0C460', source: 'cwa', stnType: 'auto_C0', name: '復興', elevation: 482, distKm: 18, from: START, note: '復興區山下（角板山），2010 年起完整，氣溫偏高' },
+  { id: 'C0U710', source: 'cwa', stnType: 'auto_C0', name: '太平山', elevation: 1942, distKm: 22, from: START, note: '宜蘭太平山，海拔高約 740m；2018 年以前附近高山只有這站有氣溫，綜合資料 2010~2017 用它換算（驗證：日最低溫與白嶺平均差 0.8°C）' },
   { id: 'C1C840', source: 'cwa', stnType: 'auto_C1', name: '大曼', elevation: 688, distKm: 1, from: '2026-10-28', note: '雨量站，2026/10 新設' },
   // 經濟部水利署 水文資訊網 — 實測雨量（年報整理後公開，目前到 2025 年底）
   { id: 'wra-21C070', wraNo: '21C070', source: 'wra', name: '巴陵（水利署）', elevation: 1220, distKm: 1, from: START, note: '北區水資源分署雨量站，海拔與上巴陵幾乎相同' },
@@ -63,7 +63,7 @@ function months(from, to) {
 }
 const lastDay = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
 
-// 全部資料對齊到同一條時間軸：2015-01-01 01:00 ~ 今天 23:00（台灣時間，整點，代表前一小時）
+// 全部資料對齊到同一條時間軸：2010-01-01 01:00 ~ 今天 23:00（台灣時間，整點，代表前一小時）
 const T0 = Date.UTC(+START.slice(0, 4), 0, 1, 1); // 以「台灣時間當 UTC」計算，避免時區轉換
 const hourIndex = key => Math.round((Date.parse(key.slice(0, 13) + ':00:00Z') - T0) / 3600e3);
 const N_HOURS = hourIndex(TODAY + 'T23') + 1;

@@ -28,7 +28,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 py-5">
           <h1 className="text-2xl font-bold">拉拉山上巴陵 天氣資料</h1>
           <p className="text-green-100 text-sm mt-1">
-            2015 年起逐時氣溫、雨量、濕度、風速與水蜜桃農事指標
+            2010 年起逐時氣溫、雨量、濕度、風速與水蜜桃農事指標
             {idx && <>　·　資料更新到 {idx.generatedAt.slice(0, 10)}</>}
           </p>
         </div>

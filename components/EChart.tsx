@@ -47,13 +47,39 @@ function useChart(option: Option, full: boolean) {
 
 const seriesCount = (o: Option) => (Array.isArray(o.series) ? o.series.length : o.series ? 1 : 0);
 
+const RECENT_YEARS = 6;
+/** 「最近 6 年」怎麼做：每年一條線 → 只開最近 6 條；X 軸是 YYYY-MM 月份 → 縮放到最近 72 個月；都不是就不顯示按鈕 */
+function recentMode(o: Option): { kind: 'series'; names: string[] } | { kind: 'axis'; startValue: number; endValue: number } | null {
+  const names = (Array.isArray(o.series) ? o.series : []).map(s => String((s as { name?: string }).name ?? ''));
+  if (names.length > RECENT_YEARS && names.every(n => /^\d{4}/.test(n))) return { kind: 'series', names: names.slice(-RECENT_YEARS) };
+  const x = (Array.isArray(o.xAxis) ? o.xAxis[0] : o.xAxis) as { data?: unknown[] } | undefined;
+  const data = x?.data ?? [];
+  if (data.length > RECENT_YEARS * 12 && data.every(v => /^\d{4}-\d\d$/.test(String(v)))) {
+    return { kind: 'axis', startValue: data.length - RECENT_YEARS * 12, endValue: data.length - 1 };
+  }
+  return null;
+}
+
 function Toolbar({ chart, option, full, onFull }: {
   chart: React.RefObject<echarts.ECharts | null>; option: Option; full: boolean; onFull: () => void;
 }) {
   const multi = seriesCount(option) > 1;
+  const recent = recentMode(option);
+  const showRecent = () => {
+    const c = chart.current;
+    if (!c || !recent) return;
+    if (recent.kind === 'series') {
+      c.dispatchAction({ type: 'legendAllSelect' });
+      c.dispatchAction({ type: 'legendInverseSelect' });
+      for (const name of recent.names) c.dispatchAction({ type: 'legendSelect', name });
+    } else {
+      c.dispatchAction({ type: 'dataZoom', startValue: recent.startValue, endValue: recent.endValue });
+    }
+  };
   const btn = 'px-2.5 py-1 rounded-md border border-stone-300 bg-white hover:bg-stone-100 text-stone-700 text-xs sm:text-sm whitespace-nowrap';
   return (
     <div className="flex flex-wrap justify-end gap-1.5 mb-1">
+      {recent && <button className={btn} onClick={showRecent}>最近 {RECENT_YEARS} 年</button>}
       {multi && <>
         <button className={btn} onClick={() => chart.current?.dispatchAction({ type: 'legendAllSelect' })}>資料全開</button>
         <button className={btn} onClick={() => {
@@ -100,8 +126,11 @@ export default function EChart({ option, height = 320 }: { option: Option; heigh
   );
 }
 
-/** 各年份顏色：最新一年固定紅色，往前依序換色（最多 12 種不重複） */
-const YEAR_PALETTE = ['#e4572e', '#3a86ff', '#2bb673', '#f4a300', '#8d6cab', '#17becf', '#d62728', '#8b5e3c', '#e377c2', '#bcbd22', '#1d4e89', '#9aa5b1'];
+/** 各年份顏色：最新一年固定紅色，往前依序換色（最多 18 種不重複） */
+const YEAR_PALETTE = [
+  '#e4572e', '#3a86ff', '#2bb673', '#f4a300', '#8d6cab', '#17becf', '#d62728', '#8b5e3c', '#e377c2', '#bcbd22',
+  '#1d4e89', '#9aa5b1', '#6a994e', '#c08497', '#5e548e', '#ff8c42', '#2f4858', '#a3a380',
+];
 export const yearColor = (k: number, n: number) => YEAR_PALETTE[(n - 1 - k) % YEAR_PALETTE.length];
 
 /** 常用顏色 */

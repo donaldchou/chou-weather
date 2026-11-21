@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "上巴陵天氣資料",
-  description: "拉拉山上巴陵 2015 年起逐時天氣與水蜜桃農事指標",
+  description: "拉拉山上巴陵 2010 年起逐時天氣與水蜜桃農事指標",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
