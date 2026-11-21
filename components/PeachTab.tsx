@@ -18,6 +18,9 @@ const dateLabel = (base: string, offset: number) => {
   const d = new Date(Date.parse(base) + offset * 86400e3);
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
 };
+// 彈出視窗標題：橫軸是「起算日後第幾天」，換成日期
+const chillTitle = (v: number | string) => dateLabel('2023-10-01', +v);
+const gddTitle = (v: number | string) => dateLabel('2023-01-01', +v);
 
 export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: StationMeta[] }) {
   const [sid, setSid] = useState('composite');
@@ -51,14 +54,10 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
       {loading || !cols ? <Loading /> : (
         <>
           <Card title="❄️ 需冷量累積（每個冬天）" hint={`${RULES.chill.desc} 從每年 10/1 開始累積，曲線越高代表冬天越冷、低溫越足夠。`}>
-            <EChart height={380} option={{
+            <EChart height={380} tipTitle={chillTitle} tipUnit=" 小時" option={{
               xAxis: { type: 'value', min: 0, max: 182, interval: 30, axisLabel: { formatter: (v: number) => dateLabel('2023-10-01', v) } },
               yAxis: { type: 'value', name: '累積小時' },
-              tooltip: { trigger: 'axis', axisPointer: { type: 'line' }, formatter: (ps: unknown) => {
-                const arr = ps as { seriesName: string; value: [number, number]; color: string }[];
-                if (!arr.length) return '';
-                return `<b>${dateLabel('2023-10-01', arr[0].value[0])}</b><br/>` + arr.map(p => `<span style="color:${p.color}">●</span> ${p.seriesName}：${p.value[1]} 小時`).join('<br/>');
-              } },
+              tooltip: { trigger: 'axis', axisPointer: { type: 'line' } },
               series: winters.map((w, k) => ({
                 name: `${w.label}（${w.total}h${w.coverage < 0.9 ? '，資料不完整' : ''}）`, type: 'line', symbol: 'none', data: w.points,
                 color: yearColor(k, winters.length), lineStyle: { width: k === winters.length - 1 ? 4 : 2 },
@@ -87,14 +86,9 @@ export default function PeachTab({ idx, stations }: { idx: DataIndex; stations: 
           </Card>
 
           <Card title="🌡️ 生長度日累積（每年 1/1 起）" hint={`${RULES.gdd.desc} 同一天比較各年的高低，可以預估今年開花、採收會提早還是延後。`}>
-            <EChart height={360} option={{
+            <EChart height={360} tipTitle={gddTitle} option={{
               xAxis: { type: 'value', min: 0, max: 365, interval: 31, axisLabel: { formatter: (v: number) => dateLabel('2023-01-01', v) } },
               yAxis: { type: 'value', name: '°C·日' },
-              tooltip: { trigger: 'axis', formatter: (ps: unknown) => {
-                const arr = ps as { seriesName: string; value: [number, number]; color: string }[];
-                if (!arr.length) return '';
-                return `<b>${dateLabel('2023-01-01', arr[0].value[0])}</b><br/>` + arr.map(p => `<span style="color:${p.color}">●</span> ${p.seriesName}：${p.value[1]}`).join('<br/>');
-              } },
               series: gdd.map((g, k) => ({
                 name: g.label, type: 'line', symbol: 'none', data: g.points,
                 color: yearColor(k, gdd.length), lineStyle: { width: k === gdd.length - 1 ? 4 : 2 },
