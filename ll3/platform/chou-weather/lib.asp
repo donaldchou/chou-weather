@@ -15,8 +15,8 @@ var ALL_FIELDS = ['t', 'rh', 'rain', 'ws', 'gust', 'wd', 'p', 'sun', 'rad', 'dew
 
 // 上巴陵綜合：各項目依序取用的測站（與 lib/data.ts COMPOSITE_ORDER 相同）
 var COMPOSITE_ORDER = {
-	t: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10'],
-	rh: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10'],
+	t: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10', 'C0U710'],
+	rh: ['C0C800', 'C0UB60', 'C0UA30', 'C0UA10', 'C0U710'],
 	rain: ['C0C800', 'wra-21C070', 'wra-21C090', 'C1C840', 'wra-21C080', 'C0C460'],
 	ws: ['C0C800', 'C0UB60', 'C0UA30'],
 	gust: ['C0C800', 'C0UB60', 'C0UA30'],
