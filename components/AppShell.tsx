@@ -90,7 +90,7 @@ function Shell({ pathname, children }: { pathname: string; children: React.React
         </button>
         {!mini && (
           <div className="min-w-0">
-            <div className="truncate text-lg font-bold leading-tight text-white">上巴陵天氣</div>
+            <div className="truncate text-lg font-bold leading-tight text-white">CHOU 農場平台</div>
             <div className="text-sm text-emerald-200/80">水蜜桃農事天氣</div>
           </div>
         )}
@@ -190,7 +190,7 @@ function Shell({ pathname, children }: { pathname: string; children: React.React
       <div className={`transition-[padding] duration-200 ${collapsed ? 'lg:pl-24' : 'lg:pl-70'} print:pl-0`}>
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-stone-200 bg-white/90 px-3 py-3 backdrop-blur lg:hidden print:hidden">
           <button onClick={() => setOpen(true)} aria-label="開啟選單" className="text-stone-700"><Menu size={24} /></button>
-          <span className="text-lg font-semibold text-stone-800">上巴陵天氣</span>
+          <span className="text-lg font-semibold text-stone-800">CHOU 農場平台</span>
         </header>
         <main className="px-3 py-4 sm:px-4 lg:py-5 lg:pr-5">{children}</main>
       </div>

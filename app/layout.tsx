@@ -3,7 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "上巴陵天氣資料",
+  title: "CHOU 農場平台",
   description: "拉拉山上巴陵 2010 年起逐時天氣與水蜜桃農事指標",
 };
 
