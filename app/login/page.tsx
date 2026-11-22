@@ -46,7 +46,7 @@ export default function LoginPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/icon.svg" width={44} height={44} alt="" className="block" />
           <div>
-            <div className="text-xl font-bold text-stone-900">上巴陵天氣</div>
+            <div className="text-xl font-bold text-stone-900">CHOU 農場平台</div>
             <div className="text-sm text-stone-500">水蜜桃農事天氣</div>
           </div>
         </div>
