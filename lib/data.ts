@@ -19,6 +19,8 @@ export interface StationMeta {
 
 export interface DataIndex {
   generatedAt: string;
+  /** 資料庫最新一筆的時間（台灣時間 'YYYY-MM-DD HH:00'），有接上 ll3 時才有 */
+  latest?: string;
   start: string;
   hours: number;
   site: { name: string; lat: number; lon: number; elevation: number };
@@ -65,18 +67,88 @@ export const SOURCE_LABEL: Record<StationMeta['source'], string> = {
   composite: '綜合（實測為主）',
 };
 
+// 資料分兩段：
+//   1. /data/*.json：歷年資料的固定檔（部署時產生，讀起來快）
+//   2. /api/data/recent：直接讀 ll3 weather.mdb（cron-job 每 10 分鐘寫進去）固定檔之後的最新資料
+// 兩段合在一起給圖表用；同一小時資料庫有值就以資料庫為準。
+
+/** 資料庫那段往前多抓幾天，蓋掉固定檔最後幾天可能還不完整的資料 */
+const RECENT_OVERLAP_DAYS = 2;
+/** ll3 一次最多給 40 天 */
+const RECENT_MAX_DAYS = 38;
+
+type RecentStation = { time: string[] } & Record<string, Col | string[]>;
+interface Recent { now: string; stations: Record<string, RecentStation> }
+
 let indexPromise: Promise<DataIndex> | null = null;
+let recent: Recent | null = null;
 const stationCache = new Map<string, Promise<Cols>>();
 
+/** 台灣時間 'YYYY-MM-DD HH' */
+const twHour = (ms: number) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 13).replace('T', ' ');
+
+async function loadRecent(idx: DataIndex): Promise<Recent | null> {
+  const from = Math.max(Date.parse(idx.generatedAt) - RECENT_OVERLAP_DAYS * 86400e3, Date.now() - RECENT_MAX_DAYS * 86400e3);
+  const since = twHour(from).slice(0, 10) + ' 01';
+  try {
+    const r = await fetch(`/api/data/recent?since=${encodeURIComponent(since)}`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.stations ? j : null;
+  } catch {
+    return null; // 連不上 ll3 時，至少還有固定檔的資料
+  }
+}
+
 export function loadIndex() {
-  indexPromise ??= fetch('/data/index.json', { cache: 'no-store' }).then(r => r.json());
+  indexPromise ??= (async () => {
+    const idx: DataIndex = await fetch('/data/index.json', { cache: 'no-store' }).then(r => r.json());
+    recent = await loadRecent(idx);
+    if (!recent) return idx;
+    // 找出資料庫裡最新一筆有值的時間，把時間軸延長到那一天結束
+    let last = -1;
+    for (const st of idx.stations) {
+      const r = recent.stations[st.id];
+      if (!r) continue;
+      let stLast = -1;
+      r.time.forEach((k, j) => {
+        if (Object.entries(r).some(([f, a]) => f !== 'time' && (a as Col)[j] != null)) stLast = Math.max(stLast, indexOf(k.replace(' ', 'T')));
+      });
+      if (stLast >= 0) {
+        const d = dayOf(stLast);
+        if (d > st.to) st.to = d;
+        if (st.source !== 'openmeteo') last = Math.max(last, stLast);
+      }
+    }
+    if (last < 0) return idx;
+    const lastDay = dayOf(last);
+    idx.hours = Math.max(idx.hours, indexOf(`${lastDay}T23`) + 2);
+    idx.generatedAt = timeOf(last).toISOString().slice(0, 13) + ':00:00+08:00';
+    idx.latest = fmtHour(last);
+    return idx;
+  })();
   return indexPromise;
 }
 
 export function loadStation(id: string): Promise<Cols> {
   if (id === COMPOSITE_ID) return loadComposite();
   if (!stationCache.has(id)) {
-    stationCache.set(id, fetch(`/data/${id}.json`, { cache: 'no-store' }).then(r => r.json()).then(j => j.cols as Cols));
+    stationCache.set(id, (async () => {
+      const [idx, j] = await Promise.all([loadIndex(), fetch(`/data/${id}.json`, { cache: 'no-store' }).then(r => r.json())]);
+      const cols = j.cols as Cols;
+      const n = idx.hours;
+      for (const a of Object.values(cols)) while (a.length < n) a.push(null);
+      const r = recent?.stations[id];
+      if (r) {
+        const at = r.time.map(k => indexOf(k.replace(' ', 'T')));
+        for (const [f, a] of Object.entries(r)) {
+          if (f === 'time') continue;
+          const col = (cols[f] ??= new Array(n).fill(null));
+          (a as Col).forEach((v, k) => { if (v != null && at[k] >= 0 && at[k] < n) col[at[k]] = v; });
+        }
+      }
+      return cols;
+    })());
   }
   return stationCache.get(id)!;
 }

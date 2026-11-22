@@ -250,6 +250,29 @@ try {
 			data.push(row);
 		}
 
+	} else if (action === 'recent') {
+		// 網頁圖表用：某時間之後所有測站的逐時資料（綜合資料由網頁自己算，不回傳）
+		// 回傳 { now, stations: { 'C0C800': { time: ['YYYY-MM-DD HH',...], t: [...], rh: [...] } } }（全空的欄位省略）
+		var rf = hourParam('since'), rt = new Date();
+		if ((rt - rf) / 86400000 > 40) throw fail(400, '一次最多查 40 天');
+		var rsI = c.Execute("SELECT station_id FROM stations WHERE station_id<>'composite'"), rids = [];
+		while (!rsI.EOF) { rids.push(String(rsI('station_id').Value)); rsI.MoveNext(); }
+		rsI.Close();
+		var rall = readHourly(c, rids, rf, addHours(rt, 2)), rst = {};
+		for (var rsid in rall) {
+			var rk = [];
+			for (var rkk in rall[rsid]) rk.push(rkk);
+			rk.sort();
+			var ro = { time: rk };
+			for (var rfi = 0; rfi < HOURLY_OUT.length; rfi++) {
+				var rfn = HOURLY_OUT[rfi], rcol = [], rany = false;
+				for (var rj = 0; rj < rk.length; rj++) { var rv = rall[rsid][rk[rj]][rfn]; rcol.push(rv); if (rv !== null) rany = true; }
+				if (rany) ro[rfn] = rcol;
+			}
+			rst[rsid] = ro;
+		}
+		data = { now: hourKey(rt), stations: rst };
+
 	} else if (action === 'hourly_save') {
 		var ss = stationParam(c), st0 = hourParam('time'), vals = parseJSON(need('values')), v = {}, anyV = false;
 		for (var vf in vals) {

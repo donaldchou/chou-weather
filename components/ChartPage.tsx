@@ -17,7 +17,9 @@ export default function ChartPage({ title, render }: {
         <h1 className="text-2xl font-bold text-stone-900">{title}</h1>
         <p className="mt-1 text-sm text-stone-500">
           拉拉山上巴陵 {idx ? idx.start.slice(0, 4) : ''} 年起逐時氣溫、雨量、濕度、風速
-          {idx && <>　·　資料更新到 {idx.generatedAt.slice(0, 10)}</>}
+          {idx && (idx.latest
+            ? <>　·　資料更新到 {idx.latest}（ll3 資料庫，每 10 分鐘更新）</>
+            : <>　·　資料更新到 {idx.generatedAt.slice(0, 10)}<span className="text-amber-700">（暫時連不上 ll3 資料庫，只顯示歷年資料）</span></>)}
         </p>
       </div>
       {!idx ? <Loading /> : render(idx, stations)}
