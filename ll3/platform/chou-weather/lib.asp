@@ -348,7 +348,7 @@ function touchStations(c, ids) {
 }
 
 // ---------------- 網頁圖表用的年度 JSON ----------------
-// 每年一個檔：\database\weather_json\YYYY.json，從 weather.mdb 匯出（weather.mdb 是正本，JSON 只是讀得快的副本）
+// 每年一個檔：\database\weather_json\YYYY.dat（內容是 JSON；用 .dat 是因為 IIS 不送不認得的副檔名，網址直接開不到），從 weather.mdb 匯出（weather.mdb 是正本，JSON 只是讀得快的副本）
 // 內容：{"year":2026,"start":"2026-01-01T01","hours":8760,"generatedAt":"...","stations":{"C0C800":{"t":"12.3,,13.1,…"}}}
 //   第 0 筆 = 1/1 01:00（00:00~01:00 這一小時），最後一筆 = 隔年 1/1 00:00；逗號分隔、空白＝沒有資料
 //   綜合資料（composite）不放，網頁自己用各測站算
@@ -362,7 +362,7 @@ function jsonDirPath() {
 }
 function yearHours(year) { return Math.round((new Date(year + 1, 0, 1, 0) - new Date(year, 0, 1, 1)) / 3600000) + 1; }
 
-/** 從 weather.mdb 匯出某一年 → YYYY.json，回傳 { year, stations, bytes, ms } */
+/** 從 weather.mdb 匯出某一年 → YYYY.dat，回傳 { year, stations, bytes, ms } */
 function exportYear(c, year) {
 	var t0 = new Date(year, 0, 1, 1), t1 = new Date(year + 1, 0, 1, 0), n = yearHours(year), started = new Date();
 	var rs = c.Execute("SELECT * FROM hourly WHERE station_id<>'composite' AND obs_time BETWEEN " + jetFrom(t0) + ' AND ' + jetTo(t1));
@@ -395,7 +395,7 @@ function exportYear(c, year) {
 	var now = new Date(), text = '{"year":' + year + ',"start":"' + year + '-01-01T01","hours":' + n + ',"generatedAt":"' +
 		dateStr(now) + 'T' + pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' + pad2(now.getSeconds()) + '+08:00","stations":{' + parts.join(',') + '}}';
 	var dir = jsonDirPath(), fso = Server.CreateObject('Scripting.FileSystemObject');
-	var tmp = dir + '\\' + year + '.tmp', dst = dir + '\\' + year + '.json';
+	var tmp = dir + '\\' + year + '.tmp', dst = dir + '\\' + year + '.dat';
 	var ts = fso.CreateTextFile(tmp, true, false);
 	ts.Write(text);
 	ts.Close();

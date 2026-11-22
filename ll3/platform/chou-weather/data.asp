@@ -4,7 +4,7 @@
 <%
 // 網頁圖表的資料（Vercel proxy 確認使用者有登入後，帶 X-LL3-Key 標頭轉過來）
 //   data.asp?f=index   測站清單＋有哪些年份（即時由 weather.mdb 產生）
-//   data.asp?f=2025    2025 年的逐時資料（\database\weather_json\2025.json，檔案不存在就先從 weather.mdb 匯出）
+//   data.asp?f=2025    2025 年的逐時資料（\database\weather_json\2025.dat，檔案不存在就先從 weather.mdb 匯出）
 //   加上 &v=版本 時（網頁用檔案修改時間當版本）瀏覽器可以長期快取
 Response.CodePage = 65001;
 Response.Charset = 'utf-8';
@@ -48,7 +48,7 @@ if (f === 'index') {
 	// 年份：FIRST_YEAR ~ 今年，版本＝檔案修改時間（還沒產生的給 0）
 	var fso = Server.CreateObject('Scripting.FileSystemObject'), dir = jsonDirPath(), now = new Date(), years = [];
 	for (var y = FIRST_YEAR; y <= now.getFullYear(); y++) {
-		var p = dir + '\\' + y + '.json', v = fso.FileExists(p) ? new Date(fso.GetFile(p).DateLastModified).getTime() : 0;
+		var p = dir + '\\' + y + '.dat', v = fso.FileExists(p) ? new Date(fso.GetFile(p).DateLastModified).getTime() : 0;
 		years.push('{"year":' + y + ',"v":' + v + '}');
 	}
 	var last = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23);
@@ -60,7 +60,7 @@ if (f === 'index') {
 		'-01-01T01","hours":' + hours + ',"site":' + SITE + ',"stations":[' + ids.join(',') + '],"years":[' + years.join(',') + ']}');
 
 } else if (/^\d{4}$/.test(f) && +f >= FIRST_YEAR && +f <= new Date().getFullYear() + 1) {
-	var path = jsonDirPath() + '\\' + f + '.json', fso2 = Server.CreateObject('Scripting.FileSystemObject');
+	var path = jsonDirPath() + '\\' + f + '.dat', fso2 = Server.CreateObject('Scripting.FileSystemObject');
 	if (!fso2.FileExists(path)) { var c2 = openDb(); exportYear(c2, +f); c2.Close(); }
 	Response.ContentType = 'application/json';
 	Response.CacheControl = (String(Request.QueryString('v')) !== 'undefined' && String(Request.QueryString('v')) !== '0'
