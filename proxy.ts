@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySession } from '@/lib/server/session';
 
 /** 不用登入就能進的路徑（/api/relay 給 cron-job.org 呼叫，用自己的 key 驗證） */
-const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout', '/api/relay'];
+const LL3_DATA_URL = process.env.LL3_DATA_URL || 'https://www.ll3.com.tw/platform/chou-weather/data.asp';
+
+const PUBLIC =['/login', '/api/auth/login', '/api/auth/logout', '/api/relay'];
 
 /**
  * 整個網站都要登入，包含 /data/*.json 天氣資料檔。這裡只驗證 JWT 簽章（不查資料庫），
@@ -26,6 +28,22 @@ export async function proxy(req: NextRequest) {
     const res = NextResponse.redirect(login);
     if (req.cookies.has(SESSION_COOKIE)) res.cookies.delete(SESSION_COOKIE);
     return res;
+  }
+
+  // 天氣資料不放在 Vercel：/data/index.json、/data/y/2025.json 轉到 ll3 的 data.asp（由 weather.mdb 產生），
+  // 帶金鑰標頭，瀏覽器看不到金鑰；原本的 cookie 等標頭不轉過去
+  if (pathname.startsWith('/data/')) {
+    const m = pathname.match(/^\/data\/(?:index|y\/(\d{4}))\.json$/);
+    const key = process.env.LL3_API_KEY;
+    if (!m || !key) return NextResponse.json({ error: '找不到資料' }, { status: 404 });
+    const url = new URL(LL3_DATA_URL);
+    url.searchParams.set('f', m[1] ?? 'index');
+    const v = req.nextUrl.searchParams.get('v');
+    if (v && /^\d+$/.test(v)) url.searchParams.set('v', v);
+    const headers = new Headers({ 'x-ll3-key': key });
+    const ae = req.headers.get('accept-encoding');
+    if (ae) headers.set('accept-encoding', ae);
+    return NextResponse.rewrite(url, { request: { headers } });
   }
 
   if (session.role !== 'admin') {

@@ -1,4 +1,4 @@
-// 抓取 2010-01-01 起的逐時天氣資料，整理成 public/data/*.json
+// 抓取 2010-01-01 起的逐時天氣資料，整理成 data-json/*.json
 // 用法：node scripts/fetch-data.mjs [--only=C0C800,wra-21C070,openmeteo]
 // 已抓過的月份會快取在 data-cache/，重跑只會補抓缺的與當月。
 import fs from 'node:fs';
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CACHE = path.join(ROOT, 'data-cache');
-const OUT = path.join(ROOT, 'public', 'data');
+const OUT = path.join(ROOT, 'data-json');
 fs.mkdirSync(CACHE, { recursive: true });
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -258,4 +258,4 @@ for (const st of STATIONS) {
   console.log(`  ✓ ${st.name}：${Object.entries(count).map(([f, n]) => `${f}=${n}`).join(' ')}`);
 }
 fs.writeFileSync(prevIndexFile, JSON.stringify(index, null, 1));
-console.log('完成，輸出到 public/data/');
+console.log('完成，輸出到 data-json/');

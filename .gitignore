@@ -49,3 +49,6 @@ next-env.d.ts
 
 # personal notes with passwords - never commit
 /拉拉山天氣預測_命令.txt
+
+# 本機抓資料的 JSON（網站的資料改由 ll3 weather.mdb 提供，不放 Vercel）
+/data-json

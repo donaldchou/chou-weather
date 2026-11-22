@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import { adjustTemp } from '../lib/data';
 import { chillByWinter, gddByYear, toDaily, toMonthly } from '../lib/agri';
 
-const idx = JSON.parse(fs.readFileSync('public/data/index.json', 'utf8'));
+const idx = JSON.parse(fs.readFileSync('data-json/index.json', 'utf8'));
 for (const [id, elev] of [['C0UA30', 1397], ['C0C800', 1167]] as const) {
-  const cols = JSON.parse(fs.readFileSync(`public/data/${id}.json`, 'utf8')).cols;
+  const cols = JSON.parse(fs.readFileSync(`data-json/${id}.json`, 'utf8')).cols;
   cols.t = adjustTemp(cols.t, elev, 1200);
   const daily = toDaily(cols, idx.hours);
   const monthly = toMonthly(daily);

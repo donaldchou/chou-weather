@@ -347,6 +347,70 @@ function touchStations(c, ids) {
 	}
 }
 
+// ---------------- 網頁圖表用的年度 JSON ----------------
+// 每年一個檔：\database\weather_json\YYYY.json，從 weather.mdb 匯出（weather.mdb 是正本，JSON 只是讀得快的副本）
+// 內容：{"year":2026,"start":"2026-01-01T01","hours":8760,"generatedAt":"...","stations":{"C0C800":{"t":"12.3,,13.1,…"}}}
+//   第 0 筆 = 1/1 01:00（00:00~01:00 這一小時），最後一筆 = 隔年 1/1 00:00；逗號分隔、空白＝沒有資料
+//   綜合資料（composite）不放，網頁自己用各測站算
+var JSON_DIR = '\\database\\weather_json';
+var FIRST_YEAR = 2010;
+
+function jsonDirPath() {
+	var p = Server.MapPath(JSON_DIR), fso = Server.CreateObject('Scripting.FileSystemObject');
+	if (!fso.FolderExists(p)) fso.CreateFolder(p);
+	return p;
+}
+function yearHours(year) { return Math.round((new Date(year + 1, 0, 1, 0) - new Date(year, 0, 1, 1)) / 3600000) + 1; }
+
+/** 從 weather.mdb 匯出某一年 → YYYY.json，回傳 { year, stations, bytes, ms } */
+function exportYear(c, year) {
+	var t0 = new Date(year, 0, 1, 1), t1 = new Date(year + 1, 0, 1, 0), n = yearHours(year), started = new Date();
+	var rs = c.Execute("SELECT * FROM hourly WHERE station_id<>'composite' AND obs_time BETWEEN " + jetFrom(t0) + ' AND ' + jetTo(t1));
+	var F = rs.Fields, fSid = F.Item('station_id'), fTime = F.Item('obs_time'), fc = [], k;
+	for (k = 0; k < ALL_FIELDS.length; k++) fc.push(F.Item(COL[ALL_FIELDS[k]]));
+	var st = {}, base = t0.getTime();
+	while (!rs.EOF) {
+		var i = Math.round((new Date(fTime.Value).getTime() - base) / 3600000);
+		if (i >= 0 && i < n) {
+			var sid = String(fSid.Value), s = st[sid] || (st[sid] = {});
+			for (k = 0; k < fc.length; k++) {
+				var v = fc[k].Value;
+				if (v !== null && v !== undefined) (s[ALL_FIELDS[k]] || (s[ALL_FIELDS[k]] = new Array(n)))[i] = Math.round(v * 100) / 100;
+			}
+		}
+		rs.MoveNext();
+	}
+	rs.Close();
+	var parts = [], ns = 0;
+	for (var id in st) {
+		var fl = [];
+		for (var f in st[id]) {
+			var a = st[id][f];
+			if (a.length < n) a[n - 1] = undefined;
+			fl.push('"' + f + '":"' + a.join(',') + '"');
+		}
+		parts.push('"' + id + '":{' + fl.join(',') + '}');
+		ns++;
+	}
+	var now = new Date(), text = '{"year":' + year + ',"start":"' + year + '-01-01T01","hours":' + n + ',"generatedAt":"' +
+		dateStr(now) + 'T' + pad2(now.getHours()) + ':' + pad2(now.getMinutes()) + ':' + pad2(now.getSeconds()) + '+08:00","stations":{' + parts.join(',') + '}}';
+	var dir = jsonDirPath(), fso = Server.CreateObject('Scripting.FileSystemObject');
+	var tmp = dir + '\\' + year + '.tmp', dst = dir + '\\' + year + '.json';
+	var ts = fso.CreateTextFile(tmp, true, false);
+	ts.Write(text);
+	ts.Close();
+	if (fso.FileExists(dst)) fso.DeleteFile(dst, true);
+	fso.MoveFile(tmp, dst);
+	return { year: year, stations: ns, bytes: text.length, ms: new Date() - started };
+}
+
+/** 某段時間有變動 → 重產涵蓋到的年份（1/1 00:00 屬於前一年的檔） */
+function exportYearsFor(c, fromT, toT) {
+	var y0 = addHours(fromT, -1).getFullYear(), y1 = addHours(toT, -1).getFullYear(), r = [];
+	for (var y = y0; y <= y1; y++) if (y >= FIRST_YEAR) r.push(exportYear(c, y));
+	return r;
+}
+
 function checkKey() {
 	var k = String(Request.QueryString('key')) || '';
 	if (k === 'undefined' || k === '') k = String(Request.Form('key'));

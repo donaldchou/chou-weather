@@ -77,7 +77,7 @@ export default function SourcesTab({ idx, stations }: { idx: DataIndex; stations
             </div>
           ))}
         </div>
-        <p className="text-xs text-stone-400 mt-4">最新一筆資料：{idx.latest ?? new Date(idx.generatedAt).toLocaleString('zh-TW')}。最新資料直接讀 ll3 weather.mdb（cron-job 每 10 分鐘更新），較早的歷年資料讀網站內的固定檔。</p>
+        <p className="text-xs text-stone-400 mt-4">最新一筆資料：{idx.latest ?? new Date(idx.generatedAt).toLocaleString('zh-TW')}。資料全部來自 ll3 的 weather.mdb：歷年資料是 ll3 每天 10:00 從 weather.mdb 匯出的年度檔，最近幾天直接讀 weather.mdb（cron-job 每 10 分鐘更新）。</p>
       </Card>
 
       <Card title="測站清單" hint="距離為與上巴陵（約 24.67N, 121.41E）的直線距離">

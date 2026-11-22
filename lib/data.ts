@@ -67,28 +67,47 @@ export const SOURCE_LABEL: Record<StationMeta['source'], string> = {
   composite: '綜合（實測為主）',
 };
 
-// 資料分兩段：
-//   1. /data/*.json：歷年資料的固定檔（部署時產生，讀起來快）
-//   2. /api/data/recent：直接讀 ll3 weather.mdb（cron-job 每 10 分鐘寫進去）固定檔之後的最新資料
-// 兩段合在一起給圖表用；同一小時資料庫有值就以資料庫為準。
+// 資料全部來自 ll3 的 weather.mdb（Vercel 上不放資料）：
+//   1. /data/index.json、/data/y/YYYY.json：ll3 每天從 weather.mdb 匯出的年度 JSON（proxy.ts 轉到 ll3 data.asp）
+//      過去年份的檔案不會變，網址帶版本（檔案修改時間），瀏覽器會快取
+//   2. /api/data/recent：直接讀 weather.mdb 最近幾天（cron-job 每 10 分鐘寫進去）
+// 兩段合在一起給圖表用；同一小時以第 2 段（最新）為準。
 
-/** 資料庫那段往前多抓幾天，蓋掉固定檔最後幾天可能還不完整的資料 */
+/** 直接讀資料庫那段：從今年 JSON 產生時間往前多抓幾天 */
 const RECENT_OVERLAP_DAYS = 2;
 /** ll3 一次最多給 40 天 */
 const RECENT_MAX_DAYS = 38;
 
 type RecentStation = { time: string[] } & Record<string, Col | string[]>;
 interface Recent { now: string; stations: Record<string, RecentStation> }
+interface YearFile { year: number; start: string; hours: number; generatedAt: string; stations: Record<string, Record<string, string>> }
+type IndexFile = DataIndex & { years: { year: number; v: number }[] };
 
 let indexPromise: Promise<DataIndex> | null = null;
+let years: IndexFile['years'] = [];
 let recent: Recent | null = null;
 const stationCache = new Map<string, Promise<Cols>>();
+const yearCache = new Map<number, Promise<YearFile>>();
 
 /** 台灣時間 'YYYY-MM-DD HH' */
 const twHour = (ms: number) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 13).replace('T', ' ');
 
-async function loadRecent(idx: DataIndex): Promise<Recent | null> {
-  const from = Math.max(Date.parse(idx.generatedAt) - RECENT_OVERLAP_DAYS * 86400e3, Date.now() - RECENT_MAX_DAYS * 86400e3);
+function loadYear(y: { year: number; v: number }): Promise<YearFile> {
+  if (!yearCache.has(y.year)) {
+    // 有版本號 → 用瀏覽器快取（內容變了版本號就會變）
+    yearCache.set(y.year, fetch(`/data/y/${y.year}.json?v=${y.v}`, y.v ? {} : { cache: 'no-store' }).then(r => {
+      if (!r.ok) throw new Error(`${y.year} 年資料讀取失敗（${r.status}）`);
+      return r.json();
+    }));
+  }
+  return yearCache.get(y.year)!;
+}
+
+async function loadRecent(): Promise<Recent | null> {
+  // 今年 JSON 的產生時間（檔案修改時間）往前 2 天起，直接讀資料庫
+  const cur = years[years.length - 1];
+  const base = cur?.v ? cur.v : Date.now();
+  const from = Math.max(base - RECENT_OVERLAP_DAYS * 86400e3, Date.now() - RECENT_MAX_DAYS * 86400e3);
   const since = twHour(from).slice(0, 10) + ' 01';
   try {
     const r = await fetch(`/api/data/recent?since=${encodeURIComponent(since)}`, { cache: 'no-store' });
@@ -96,14 +115,19 @@ async function loadRecent(idx: DataIndex): Promise<Recent | null> {
     const j = await r.json();
     return j && j.stations ? j : null;
   } catch {
-    return null; // 連不上 ll3 時，至少還有固定檔的資料
+    return null; // 讀不到時，至少還有年度 JSON 的資料（到每天 10:00 產生的那一刻）
   }
 }
 
 export function loadIndex() {
   indexPromise ??= (async () => {
-    const idx: DataIndex = await fetch('/data/index.json', { cache: 'no-store' }).then(r => r.json());
-    recent = await loadRecent(idx);
+    const r = await fetch('/data/index.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`資料索引讀取失敗（${r.status}）`);
+    const { years: ys, ...idx }: IndexFile = await r.json();
+    years = ys;
+    // 先開始下載各年份（和讀資料庫同時進行）
+    ys.forEach(y => loadYear(y).catch(() => {})); // 錯誤留給真正用到時處理
+    recent = await loadRecent();
     if (!recent) return idx;
     // 找出資料庫裡最新一筆有值的時間，把時間軸延長到那一天結束
     let last = -1;
@@ -134,10 +158,23 @@ export function loadStation(id: string): Promise<Cols> {
   if (id === COMPOSITE_ID) return loadComposite();
   if (!stationCache.has(id)) {
     stationCache.set(id, (async () => {
-      const [idx, j] = await Promise.all([loadIndex(), fetch(`/data/${id}.json`, { cache: 'no-store' }).then(r => r.json())]);
-      const cols = j.cols as Cols;
+      const idx = await loadIndex();
+      const yfs = await Promise.all(years.map(loadYear));
       const n = idx.hours;
-      for (const a of Object.values(cols)) while (a.length < n) a.push(null);
+      const cols: Cols = {};
+      for (const yf of yfs) {
+        const st = yf.stations[id];
+        if (!st) continue;
+        const off = indexOf(yf.start);
+        for (const [f, csv] of Object.entries(st)) {
+          const col = (cols[f] ??= new Array(n).fill(null));
+          const a = csv.split(',');
+          for (let k = 0; k < a.length; k++) {
+            const g = off + k;
+            if (a[k] !== '' && g >= 0 && g < n) col[g] = +a[k];
+          }
+        }
+      }
       const r = recent?.stations[id];
       if (r) {
         const at = r.time.map(k => indexOf(k.replace(' ', 'T')));

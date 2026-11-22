@@ -84,6 +84,12 @@ try {
 	touchStations(c, touched);
 } catch (e) { errors.push('重算 ' + e.message); out('重算失敗：' + e.message); }
 
+// ---- 4. 重產網頁圖表讀的年度 JSON（這次改到的期間涵蓋到的年份，通常只有今年）
+try {
+	var ex = exportYearsFor(c, new Date(omFrom.getFullYear(), omFrom.getMonth(), omFrom.getDate(), 1), addHours(today, 24));
+	for (var xi = 0; xi < ex.length; xi++) out('網頁 JSON ' + ex[xi].year + '：' + ex[xi].stations + ' 站、' + Math.round(ex[xi].bytes / 1024) + ' KB、' + ex[xi].ms + ' ms');
+} catch (e) { errors.push('網頁 JSON ' + e.message); out('網頁 JSON 失敗：' + e.message); }
+
 writeLog(c, 'daily', errors.length === 0, log.join('；'));
 c.Close();
 out(errors.length ? 'ERROR' : 'OK');

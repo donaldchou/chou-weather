@@ -143,6 +143,8 @@ function afterHourChange(c, sid, t) {
 	}
 	rebuildDaily(c, ids, day, last);
 	touchStations(c, ids);
+	// 網頁圖表讀的年度 JSON 也跟著重產
+	exportYearsFor(c, t, t);
 }
 
 // ---------------- 主程式 ----------------
@@ -272,6 +274,12 @@ try {
 			rst[rsid] = ro;
 		}
 		data = { now: hourKey(rt), stations: rst };
+
+	} else if (action === 'export_year') {
+		// 從 weather.mdb 重產某一年的網頁 JSON
+		var ey = +need('year');
+		if (!(ey >= FIRST_YEAR && ey <= new Date().getFullYear())) throw fail(400, '年份不正確');
+		data = exportYear(c, ey);
 
 	} else if (action === 'hourly_save') {
 		var ss = stationParam(c), st0 = hourParam('time'), vals = parseJSON(need('values')), v = {}, anyV = false;

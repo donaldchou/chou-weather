@@ -1,4 +1,4 @@
-// 把 public/data/*.json 轉成 CSV + schema.ini，給 build-mdb.ps1 匯入 Access
+// 把 data-json/*.json 轉成 CSV + schema.ini，給 build-mdb.ps1 匯入 Access
 // 用法：npx tsx scripts/export-csv.ts
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,9 +8,9 @@ import { toDaily } from '../lib/agri';
 const OUT = path.resolve('data-export');
 fs.mkdirSync(OUT, { recursive: true });
 
-const idx: DataIndex = JSON.parse(fs.readFileSync('public/data/index.json', 'utf8'));
+const idx: DataIndex = JSON.parse(fs.readFileSync('data-json/index.json', 'utf8'));
 const data: Record<string, Cols> = {};
-for (const s of idx.stations) data[s.id] = JSON.parse(fs.readFileSync(`public/data/${s.id}.json`, 'utf8')).cols;
+for (const s of idx.stations) data[s.id] = JSON.parse(fs.readFileSync(`data-json/${s.id}.json`, 'utf8')).cols;
 data.composite = buildComposite(idx, data);
 const stations = [compositeMeta(idx), ...idx.stations];
 

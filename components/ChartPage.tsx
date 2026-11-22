@@ -9,7 +9,8 @@ export default function ChartPage({ title, render }: {
   render: (idx: DataIndex, stations: StationMeta[]) => React.ReactNode;
 }) {
   const [idx, setIdx] = useState<DataIndex | null>(null);
-  useEffect(() => { loadIndex().then(setIdx); }, []);
+  const [err, setErr] = useState('');
+  useEffect(() => { loadIndex().then(setIdx, e => setErr(`連不上 ll3 主機，讀不到天氣資料：${(e as Error).message}`)); }, []);
   const stations: StationMeta[] = idx ? [compositeMeta(idx), ...idx.stations] : [];
   return (
     <>
@@ -19,10 +20,10 @@ export default function ChartPage({ title, render }: {
           拉拉山上巴陵 {idx ? idx.start.slice(0, 4) : ''} 年起逐時氣溫、雨量、濕度、風速
           {idx && (idx.latest
             ? <>　·　資料更新到 {idx.latest}（ll3 資料庫，每 10 分鐘更新）</>
-            : <>　·　資料更新到 {idx.generatedAt.slice(0, 10)}<span className="text-amber-700">（暫時連不上 ll3 資料庫，只顯示歷年資料）</span></>)}
+            : <>　·　資料更新到 {idx.generatedAt.slice(0, 10)}<span className="text-amber-700">（暫時讀不到 ll3 資料庫的即時資料，只顯示到每天 10:00 匯出的部分）</span></>)}
         </p>
       </div>
-      {!idx ? <Loading /> : render(idx, stations)}
+      {err ? <p className="text-red-700 bg-red-50 rounded-lg p-4">{err}</p> : !idx ? <Loading /> : render(idx, stations)}
     </>
   );
 }
