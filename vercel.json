@@ -1,4 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "redirects": [
+    { "source": "/:path*", "destination": "https://chou-weather.ll3.com.tw/:path*", "permanent": true }
+  ]
 }
