@@ -10,7 +10,7 @@ export const PLATFORMS = [
   { id: "chou-partner", name: "客戶管理系統", url: "https://chou-partner.ll3.com.tw" },
   { id: "chou-line-bot", name: "LINE 客服", url: "https://chou-line-bot.ll3.com.tw/admin" },
   { id: "chou-weather", name: "上巴陵天氣", url: "https://chou-weather.ll3.com.tw" },
-  { id: "chou-watercontrol", name: "果園水肥控制", url: "https://chou-watercontrol.vercel.app" },
+  { id: "chou-watercontrol", name: "果園水肥控制", url: "https://chou-watercontrol.ll3.com.tw" },
 ] as const;
 
 export type PlatformId = (typeof PLATFORMS)[number]["id"];
